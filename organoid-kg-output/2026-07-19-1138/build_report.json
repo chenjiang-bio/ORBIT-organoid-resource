@@ -1,0 +1,50 @@
+{
+  "build_time": "2026-07-19T11:39:20.522803",
+  "source_database": "public",
+  "output_dir": "./organoid-kg-output\\2026-07-19-1138",
+  "statistics": {
+    "total_nodes": 103360,
+    "total_edges": 258284,
+    "nodes_by_type": {
+      "Phenotype": 17984,
+      "Sample": 17055,
+      "Technology": 15869,
+      "Publication": 12473,
+      "Composition": 10518,
+      "Organoid": 9095,
+      "Drug": 4255,
+      "Biomarker": 4193,
+      "DiseaseModel": 4038,
+      "CellFactor": 2848,
+      "Application": 1453,
+      "Gene": 1333,
+      "Infection": 959,
+      "Organ": 601,
+      "System": 243,
+      "Omics": 226,
+      "Source": 120,
+      "Organism": 97
+    },
+    "edges_by_relation": {
+      "HAS_BIOMARKER": 29568,
+      "USES_FACTOR": 25974,
+      "HAS_COMPOSITION": 25233,
+      "HAS_PHENOTYPE": 18859,
+      "HAS_ORGANOID": 17055,
+      "FROM_ORGANISM": 17055,
+      "CITES": 17055,
+      "USES_TECHNOLOGY": 17055,
+      "SCREENS_DRUG": 14232,
+      "INDICATES_DISEASE": 13471,
+      "HAS_APPLICATION": 12787,
+      "MODELS_DISEASE": 11175,
+      "DERIVED_FROM": 10116,
+      "FROM_ORGAN": 9611,
+      "TREATS_DISEASE": 8648,
+      "HAS_OMICS": 5868,
+      "HAS_GENE_EDIT": 1918,
+      "HAS_INFECTION": 1829,
+      "BELONGS_TO_SYSTEM": 775
+    }
+  }
+}
