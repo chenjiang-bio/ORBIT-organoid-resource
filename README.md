@@ -2,7 +2,7 @@
 
 Code and reproducible workflows for **ORBIT**, an organoid knowledge and analysis resource. This repository is organized as a set of independent tools and pipelines. Each top-level subdirectory is a self-contained module that collaborators can develop and release on its own schedule.
 
-> **Default branch:** `main` (do not create or push a `master` branch).
+The default branch is `main`.
 
 ## Repository layout
 
@@ -15,12 +15,11 @@ Code and reproducible workflows for **ORBIT**, an organoid knowledge and analysi
 
 ## Getting started
 
-1. Clone this repository (ensure you are on `main`):
+1. Clone this repository:
 
    ```bash
    git clone https://github.com/chenjiang-bio/ORBIT-organoid-resource.git
    cd ORBIT-organoid-resource
-   git checkout main
    ```
 
 2. Open the subdirectory for the module you need and follow its `README.md` for install and usage instructions.
