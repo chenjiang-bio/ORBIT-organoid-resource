@@ -1,0 +1,118 @@
+{
+  "_description": "Organoid Culture Knowledge Graph — 数据库字段到 KG 节点/边的映射配置。修改此文件后重新运行 build_kg.py 即可生效，无需改动 Python 代码。",
+
+  "table_mapping": {
+    "public_general_2026": { "node_type": "Sample", "id_prefix": "smp" }
+  },
+
+  "focus_tables": ["public_general_2026"],
+
+  "manual_table_types": {
+    "public_general_2026": ["Sample", "smp"]
+  },
+
+  "_wide_table_entity_mapping_doc": "宽表列 → 实体节点映射。edge_from: sample/organ。is_json=true 表示该列为 JSON 格式需解析。",
+  "wide_table_entity_mapping": {
+    "organism":                  { "node_type": "Organism",     "id_prefix": "osm", "relation": "FROM_ORGANISM",     "edge_from": "sample" },
+    "organ":                     { "node_type": "Organ",        "id_prefix": "orn", "relation": "FROM_ORGAN",        "edge_from": "sample" },
+    "source":                    { "node_type": "Source",       "id_prefix": "src", "relation": "DERIVED_FROM",      "edge_from": "sample" },
+    "disease_modeling":          { "node_type": "DiseaseModel", "id_prefix": "dm",  "relation": "MODELS_DISEASE",    "edge_from": "sample" },
+    "application":               { "node_type": "Application",  "id_prefix": "app", "relation": "HAS_APPLICATION",   "edge_from": "sample" },
+    "gene_name":                 { "node_type": "Gene",         "id_prefix": "gen", "relation": "TARGETS_GENE",       "edge_from": "sample" },
+    "application_strategy":      { "node_type": "ApplicationStrategy", "id_prefix": "ast", "relation": "HAS_STRATEGY", "edge_from": "sample" },
+    "reference":                 { "node_type": "Publication",  "id_prefix": "pub", "relation": "REPORTED_IN",        "edge_from": "sample" },
+    "system":                    { "node_type": "System",       "id_prefix": "sys", "relation": "BELONGS_TO_SYSTEM", "edge_from": "organ" },
+    "cell_factors":              { "node_type": "CellFactor",   "id_prefix": "cf",  "relation": "USES_FACTOR",       "edge_from": "sample", "is_json": true },
+    "coculture_cell_factors":    { "node_type": "CellFactor",   "id_prefix": "cf",  "relation": "USES_FACTOR",       "edge_from": "sample", "is_json": true },
+    "techologies":               { "node_type": "Technology",   "id_prefix": "tec", "relation": "USES_TECHNOLOGY",   "edge_from": "sample", "is_json": true },
+    "drug_screening":            { "node_type": "Drug",         "id_prefix": "drg", "relation": "SCREENS_DRUG",      "edge_from": "sample", "is_json": true },
+    "infection_list":            { "node_type": "Infection",    "id_prefix": "inf", "relation": "HAS_INFECTION",     "edge_from": "sample", "is_json": true },
+    "biomarker":                 { "node_type": "Biomarker",    "id_prefix": "bmk", "relation": "HAS_BIOMARKER",     "edge_from": "sample", "is_json": true },
+    "biomarker_coculture":       { "node_type": "Biomarker",    "id_prefix": "bmk", "relation": "HAS_BIOMARKER",     "edge_from": "sample", "is_json": true },
+    "phenotype_identification":  { "node_type": "Phenotype",    "id_prefix": "phn", "relation": "HAS_PHENOTYPE",     "edge_from": "sample", "is_json": true },
+    "test":                      { "node_type": "Test",         "id_prefix": "tst", "relation": "HAS_TEST",          "edge_from": "sample", "is_json": true },
+    "omics_id":                  { "node_type": "Omics",        "id_prefix": "omc", "relation": "HAS_OMICS",         "edge_from": "sample", "is_json": true },
+    "composition":               { "node_type": "Composition",  "id_prefix": "cmp", "relation": "HAS_COMPOSITION",   "edge_from": "sample", "is_json": true }
+  },
+
+  "_compound_entity_config_doc": "复合实体节点配置。extraction_type: merged(多列合并)/json_structured(JSON对象解析)/profile(Sample→Profile边)/platform(Omics→Platform二级边)。",
+  "compound_entity_config": {
+    "cultivation_protocol": {
+      "node_type": "CultureProtocol", "id_prefix": "cpr",
+      "relation": "USES_PROTOCOL", "edge_from": "sample",
+      "extraction_type": "merged",
+      "source_columns": ["cultivation_protocol", "time_anchors", "cultivation_material_sources", "culture_days", "endpoints"]
+    },
+    "coculture_cultivation_protocol": {
+      "node_type": "CoCultureProtocol", "id_prefix": "ccp",
+      "relation": "USES_COCULTURE_PROTOCOL", "edge_from": "sample",
+      "extraction_type": "merged",
+      "source_columns": ["coculture_cultivation_protocol", "coculture_days", "read_out", "coculture"]
+    },
+    "culture_technique": {
+      "node_type": "CultureTechnique", "id_prefix": "cte",
+      "relation": "USES_TECHNIQUE", "edge_from": "sample",
+      "extraction_type": "json_structured"
+    },
+    "culture_condition": {
+      "node_type": "CultureCondition", "id_prefix": "ccn",
+      "relation": "HAS_CONDITION", "edge_from": "sample",
+      "extraction_type": "json_structured"
+    },
+    "characteristics": {
+      "node_type": "OrganoidProfile", "id_prefix": "opr",
+      "relation": "HAS_PROFILE", "edge_from": "sample",
+      "extraction_type": "profile",
+      "source_columns": ["organoid", "characteristics", "functions", "maturity", "complexity"]
+    },
+    "platform": {
+      "node_type": "Platform", "id_prefix": "pla",
+      "relation": "USES_PLATFORM", "edge_from": "omics",
+      "extraction_type": "platform"
+    }
+  },
+
+  "_inferred_relations_doc": "推断关系配置。当 source_column 和 target_column 的实体在同一 Sample 中共现时，自动推断它们之间的关系。confidence 初始值 0.5。",
+  "inferred_relations": [
+    { "source_column": "drug_screening",      "target_column": "disease_modeling", "source_type": "Drug",      "target_type": "DiseaseModel", "relation": "ASSOCIATED_WITH_DISEASE" },
+    { "source_column": "biomarker",           "target_column": "disease_modeling", "source_type": "Biomarker", "target_type": "DiseaseModel", "relation": "ASSOCIATED_WITH_DISEASE" },
+    { "source_column": "biomarker_coculture", "target_column": "disease_modeling", "source_type": "Biomarker", "target_type": "DiseaseModel", "relation": "ASSOCIATED_WITH_DISEASE" }
+  ],
+
+  "_json_entity_name_keys_doc": "JSON 对象中提取实体名称时优先查找的键名列表。如果是字符串则直接使用。",
+  "json_entity_name_keys": ["name", "Name", "drug_name", "factor_name", "gene_name", "biomarker_name", "marker_name", "technology_name", "disease_name", "pathogen_name", "phenotype_name", "cell_type"],
+
+  "_coculture_columns_doc": "标记为共培养上下文的列。这些列产生的边上会附加 context: 'coculture' 属性。",
+  "coculture_columns": ["coculture_cell_factors", "biomarker_coculture"],
+
+  "_gene_annotation_drug_lookup_doc": "GeneAnnotation drug_id 解析配置：从 public_drug 表通过 drugbank_id 匹配 drug_id，获取 preferred_name。",
+  "gene_annotation_drug_lookup": {
+    "table": "public_drug",
+    "source_field": "drug_id",
+    "match_column": "drugbank_id",
+    "target_field": "preferred_name",
+    "output_property": "gene_annotation_drug_name"
+  },
+
+  "_material_info_config_doc": "MaterialInfo 节点配置：从 CultureProtocol/CoCultureProtocol 的 material_sources JSON 中提取材料信息，创建独立节点。",
+  "material_info_config": {
+    "node_type": "MaterialInfo",
+    "id_prefix": "mat",
+    "relation": "USES_MATERIAL",
+    "parent_node_types": ["CultureProtocol", "CoCultureProtocol"],
+    "source_property": "material_sources",
+    "json_properties": ["source", "cat_number", "lot_number", "source_type", "material_name", "material_type"],
+    "enrichment_fields": ["standard_name", "application", "pathway_family", "signaling_direction"],
+    "name_fallback_field": "material_name"
+  },
+
+  "_material_similarity_config_doc": "Material_name_similarity_candidates_enhanced 表查询配置：通过 material_name in similar_names 子串匹配获取 standard_name。",
+  "material_similarity_config": {
+    "table": "Material_name_similarity_candidates_enhanced",
+    "enabled": true,
+    "match_source_field": "material_name",
+    "match_target_field": "similar_names",
+    "output_fields": ["standard_name", "application", "pathway_family", "signaling_direction"],
+    "name_output_field": "standard_name"
+  }
+}

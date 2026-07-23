@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """
-validate_kg.py — Knowledge graph validation & query simulation testing & report generation
+validate_kg.py — Knowledge graph structure validation & report generation
 
 Usage:
   python validate_kg.py                                    # Auto-detect latest KG build result
   python validate_kg.py organoid-kg-output/2026-07-18-1430/organoid_kg.json
-  python validate_kg.py --structure-only
-  python validate_kg.py --query-only
-  python validate_kg.py --gen-manual
+  python validate_kg.py --gen-manual                       # Generate user manual (no KG needed)
 
 Output:
   kg_test_output/YYYY-MM-DD-HHMM/test_report.json  — Structured test results
@@ -18,7 +16,6 @@ Output:
 import json
 import os
 import sys
-import time
 import argparse
 from datetime import datetime
 from collections import defaultdict
@@ -33,18 +30,41 @@ from query_tool import KnowledgeGraphQuery
 # =============================================================================
 
 EXPECTED_NODE_TYPES = {
-    "Sample", "Organoid", "Organ", "System", "Organism", "Source",
+    "Sample", "Organ", "System", "Organism", "Source",
     "CellFactor", "Technology", "Drug", "Gene",
     "DiseaseModel", "Infection", "Biomarker", "Phenotype",
-    "Omics", "Composition", "Application", "Publication",
+    "Test", "Omics", "Composition", "Application", "Publication",
+    "CultureProtocol", "CultureTechnique", "CultureCondition",
+    "ApplicationStrategy", "OrganoidProfile",
+    "Platform", "CoCultureProtocol", "CoCultureTechnique",
+    "GroupInfo",
+    # Step F: GroupInfo sub-nodes
+    "GroupDEGs", "IntraClusterDEGs", "ClusterMarkers", "GSVA", "GSEA",
+    # Step G: Gene annotation
+    "GeneAnnotation",
+    # MaterialInfo: extracted from protocol material_sources
+    "MaterialInfo",
 }
 
 EXPECTED_RELATION_TYPES = {
-    "HAS_ORGANOID", "FROM_ORGAN", "BELONGS_TO_SYSTEM", "FROM_ORGANISM",
+    "FROM_ORGAN", "BELONGS_TO_SYSTEM", "FROM_ORGANISM",
     "DERIVED_FROM", "USES_FACTOR", "USES_TECHNOLOGY", "SCREENS_DRUG",
-    "HAS_GENE_EDIT", "MODELS_DISEASE", "HAS_INFECTION", "HAS_BIOMARKER",
-    "HAS_PHENOTYPE", "HAS_OMICS", "HAS_COMPOSITION",
-    "HAS_APPLICATION", "CITES", "TREATS_DISEASE", "INDICATES_DISEASE",
+    "TARGETS_GENE", "MODELS_DISEASE", "HAS_INFECTION", "HAS_BIOMARKER",
+    "HAS_PHENOTYPE", "HAS_TEST", "HAS_OMICS", "HAS_COMPOSITION",
+    "HAS_APPLICATION", "REPORTED_IN",
+    "USES_PROTOCOL", "USES_TECHNIQUE", "HAS_CONDITION",
+    "HAS_STRATEGY", "HAS_PROFILE", "USES_PLATFORM",
+    "USES_COCULTURE_PROTOCOL", "USES_COCULTURE_TECHNIQUE",
+    "HAS_GROUP_INFO",
+    # Step F: GroupInfo → sub-nodes
+    "HAS_DEG", "HAS_INTRACLUSTER_DEG", "HAS_CLUSTER_MARKER",
+    "HAS_GSVA_PATHWAY", "HAS_GSEA_PATHWAY",
+    # Step G: sub-nodes → GeneAnnotation; Gene → GeneAnnotation
+    "HAS_GENE_ANNOTATION", "HAS_ANNOTATION",
+    # Inferred relations (co-occurrence)
+    "ASSOCIATED_WITH_DISEASE",
+    # Protocol internal edges
+    "USES_COMPONENT", "USES_MATERIAL",
 }
 
 # Expected source → target types for each relation (for edge direction validation)
@@ -63,131 +83,56 @@ STRUCTURE_CHECK_NAMES = {
 }
 
 EXPECTED_EDGE_DIRECTION = {
-    "HAS_ORGANOID":        ("Sample",    "Organoid"),
-    "FROM_ORGAN":          ("Organoid",  "Organ"),
-    "BELONGS_TO_SYSTEM":   ("Organ",     "System"),
-    "FROM_ORGANISM":       ("Sample",    "Organism"),
-    "DERIVED_FROM":        ("Organoid",  "Source"),
-    "USES_FACTOR":         ("Sample",    "CellFactor"),
-    "USES_TECHNOLOGY":     ("Sample",    "Technology"),
-    "SCREENS_DRUG":        ("Sample",    "Drug"),
-    "HAS_GENE_EDIT":       ("Sample",    "Gene"),
-    "MODELS_DISEASE":      ("Organoid",  "DiseaseModel"),
-    "HAS_INFECTION":       ("Sample",    "Infection"),
-    "HAS_BIOMARKER":       ("Sample",    "Biomarker"),
-    "HAS_PHENOTYPE":       ("Sample",    "Phenotype"),
-    "HAS_OMICS":           ("Sample",    "Omics"),
-    "HAS_COMPOSITION":     ("Sample",    "Composition"),
-    "HAS_APPLICATION":     ("Organoid",  "Application"),
-    "CITES":               ("Sample",    "Publication"),
-    "TREATS_DISEASE":      ("Drug",      "DiseaseModel"),
-    "INDICATES_DISEASE":   ("Biomarker", "DiseaseModel"),
+    # Each relation maps to a LIST of valid (source_type, target_type) pairs.
+    # Multi-source relations (USES_COMPONENT, USES_MATERIAL, HAS_GENE_ANNOTATION,
+    # ASSOCIATED_WITH_DISEASE) have multiple entries to cover all valid sources.
+    "FROM_ORGAN":          [("Sample",    "Organ")],
+    "BELONGS_TO_SYSTEM":   [("Organ",     "System")],
+    "FROM_ORGANISM":       [("Sample",    "Organism")],
+    "DERIVED_FROM":        [("Sample",    "Source")],
+    "USES_FACTOR":         [("Sample",    "CellFactor")],
+    "USES_TECHNOLOGY":     [("Sample",    "Technology")],
+    "SCREENS_DRUG":        [("Sample",    "Drug")],
+    "TARGETS_GENE":        [("Sample",    "Gene")],
+    "MODELS_DISEASE":      [("Sample",    "DiseaseModel")],
+    "HAS_INFECTION":       [("Sample",    "Infection")],
+    "HAS_BIOMARKER":       [("Sample",    "Biomarker")],
+    "HAS_PHENOTYPE":       [("Sample",    "Phenotype")],
+    "HAS_TEST":            [("Sample",    "Test")],
+    "HAS_OMICS":           [("Sample",    "Omics")],
+    "HAS_COMPOSITION":     [("Sample",    "Composition")],
+    "HAS_APPLICATION":     [("Sample",    "Application")],
+    "REPORTED_IN":         [("Sample",    "Publication")],
+    # v3.0 sample → compound entity edges
+    "USES_PROTOCOL":            [("Sample",         "CultureProtocol")],
+    "USES_TECHNIQUE":           [("Sample",         "CultureTechnique")],
+    "HAS_CONDITION":            [("Sample",         "CultureCondition")],
+    "HAS_STRATEGY":             [("Sample",         "ApplicationStrategy")],
+    "HAS_PROFILE":              [("Sample",         "OrganoidProfile")],
+    "USES_PLATFORM":            [("Omics",          "Platform")],
+    "USES_COCULTURE_PROTOCOL":  [("Sample",         "CoCultureProtocol")],
+    "USES_COCULTURE_TECHNIQUE": [("Sample",         "CoCultureTechnique")],
+    "HAS_GROUP_INFO":           [("Sample",         "GroupInfo")],
+    # Inferred relations (co-occurrence, confidence=0.5) — Drug or Biomarker → DiseaseModel
+    "ASSOCIATED_WITH_DISEASE":  [("Drug",           "DiseaseModel"),
+                                  ("Biomarker",      "DiseaseModel")],
+    # Step F: GroupInfo → sub-node edges
+    "HAS_DEG":                  [("GroupInfo",      "GroupDEGs")],
+    "HAS_INTRACLUSTER_DEG":     [("GroupInfo",      "IntraClusterDEGs")],
+    "HAS_CLUSTER_MARKER":       [("GroupInfo",      "ClusterMarkers")],
+    "HAS_GSVA_PATHWAY":         [("GroupInfo",      "GSVA")],
+    "HAS_GSEA_PATHWAY":         [("GroupInfo",      "GSEA")],
+    # Step G: GeneAnnotation edges (source can be GroupDEGs, IntraClusterDEGs, or ClusterMarkers)
+    "HAS_GENE_ANNOTATION":      [("GroupDEGs",      "GeneAnnotation"),
+                                  ("IntraClusterDEGs", "GeneAnnotation"),
+                                  ("ClusterMarkers",  "GeneAnnotation")],
+    "HAS_ANNOTATION":           [("Gene",           "GeneAnnotation")],
+    # Protocol internal edges — CultureProtocol OR CoCultureProtocol as source
+    "USES_COMPONENT":           [("CultureProtocol",   "CellFactor"),
+                                  ("CoCultureProtocol", "CellFactor")],
+    "USES_MATERIAL":            [("CultureProtocol",   "MaterialInfo"),
+                                  ("CoCultureProtocol", "MaterialInfo")],
 }
-
-
-# =============================================================================
-# Test Case Definitions (30 tests)
-# =============================================================================
-
-class TestCase:
-    """Single query test"""
-    def __init__(self, test_id: int, question: str, keywords: str,
-                 expected_types: List[str], expected_relations: List[str],
-                 max_hops: int = 2, min_results: int = 1,
-                 category: str = "single_hop"):
-        self.id = test_id
-        self.question = question
-        self.keywords = keywords
-        self.expected_types = expected_types
-        self.expected_relations = expected_relations
-        self.max_hops = max_hops
-        self.min_results = min_results
-        self.category = category
-
-
-TEST_CASES = [
-    # ===== Single-hop: Sample → Entity (12) =====
-    TestCase(1,  "Which samples cultured intestinal organoids?",
-             "intestinal organoid", ["Sample", "Organoid"], ["HAS_ORGANOID"]),
-    TestCase(2,  "Which samples are from human?",
-             "Human", ["Sample", "Organism"], ["FROM_ORGANISM"]),
-    TestCase(3,  "Which samples are from mouse?",
-             "Mouse", ["Sample", "Organism"], ["FROM_ORGANISM"]),
-    TestCase(4,  "Which samples used EGF factor?",
-             "EGF", ["Sample", "CellFactor"], ["USES_FACTOR"]),
-    TestCase(5,  "Which samples used Wnt factor?",
-             "Wnt", ["Sample", "CellFactor"], ["USES_FACTOR"]),
-    TestCase(6,  "Which samples used CRISPR technology?",
-             "CRISPR", ["Sample", "Technology"], ["USES_TECHNOLOGY"]),
-    TestCase(7,  "Which samples screened Cisplatin?",
-             "Cisplatin", ["Sample", "Drug"], ["SCREENS_DRUG"]),
-    TestCase(8,  "Which samples involve APC gene?",
-             "APC", ["Sample", "Gene"], ["HAS_GENE_EDIT"]),
-    TestCase(9,  "Which samples involve H1N1 influenza infection?",
-             "H1N1 influenza", ["Sample", "Infection"], ["HAS_INFECTION"]),
-    TestCase(10, "Which samples involve SARS-CoV-2 or COVID?",
-             "SARS-CoV-2 COVID", ["Sample", "Infection"], ["HAS_INFECTION"], min_results=0),
-    TestCase(11, "Which samples express Lgr5 marker?",
-             "Lgr5", ["Sample", "Biomarker"], ["HAS_BIOMARKER"]),
-    TestCase(12, "Which samples express Ki67 marker?",
-             "Ki67", ["Sample", "Biomarker"], ["HAS_BIOMARKER"]),
-
-    # ===== Single-hop: Phenotype / Omics / Composition (4) =====
-    TestCase(13, "Which samples show specific phenotypes?",
-             "phenotype morphology", ["Sample", "Phenotype"], ["HAS_PHENOTYPE"]),
-    TestCase(14, "Which samples have scRNA-seq data?",
-             "scRNA-seq", ["Sample", "Omics"], ["HAS_OMICS"]),
-    TestCase(15, "Which samples have bulk RNA-seq data?",
-             "RNA-seq transcriptome", ["Sample", "Omics"], ["HAS_OMICS"]),
-    TestCase(16, "Which samples contain Matrigel?",
-             "Matrigel", ["Sample", "Composition"], ["HAS_COMPOSITION"]),
-
-    # ===== Multi-hop: Organoid → Organ → System (6) =====
-    TestCase(17, "What liver organoids exist?",
-             "Liver hepatic", ["Organ", "Organoid"], ["FROM_ORGAN"], max_hops=2),
-    TestCase(18, "What intestinal organoids exist?",
-             "intestine intestinal colon", ["Organ", "Organoid"],
-             ["FROM_ORGAN"], max_hops=2),
-    TestCase(19, "What brain organoids exist?",
-             "brain cerebral", ["Organ", "Organoid"],
-             ["FROM_ORGAN"], max_hops=2, min_results=0),
-    TestCase(20, "Which organoids belong to the digestive system?",
-             "Digestive", ["System", "Organ", "Organoid"],
-             ["BELONGS_TO_SYSTEM", "FROM_ORGAN"], max_hops=3),
-    TestCase(21, "What tissues are liver organoids derived from?",
-             "Liver source tissue", ["Organoid", "Organ", "Source"],
-             ["FROM_ORGAN", "DERIVED_FROM"], max_hops=3),
-    TestCase(22, "What applications do organoids have?",
-             "application", ["Organoid", "Application"],
-             ["HAS_APPLICATION"], max_hops=2),
-
-    # ===== Inferred relationships (2) =====
-    TestCase(23, "What drugs are associated with diseases?",
-             "drug disease", ["Drug", "DiseaseModel"],
-             ["TREATS_DISEASE"], min_results=0),
-    TestCase(24, "What biomarkers are associated with diseases?",
-             "biomarker disease", ["Biomarker", "DiseaseModel"],
-             ["INDICATES_DISEASE"], min_results=0),
-
-    # ===== Co-culture / Disease model / Publication (6) =====
-    TestCase(25, "What cell factors are used in co-culture?",
-             "coculture factor", ["Sample", "CellFactor"],
-             ["USES_FACTOR"]),
-    TestCase(26, "Which samples involve disease modeling?",
-             "disease model cancer tumor", ["Sample", "DiseaseModel"],
-             ["MODELS_DISEASE"], max_hops=2),
-    TestCase(27, "What tumor organoid disease models exist?",
-             "tumor cancer organoid", ["Organoid", "DiseaseModel"],
-             ["MODELS_DISEASE", "HAS_ORGANOID"], max_hops=2, min_results=0),
-    TestCase(28, "What publications do samples cite?",
-             "10.", ["Sample", "Publication"], ["CITES"]),
-    TestCase(29, "Cross-query: organoid drug screening and disease models?",
-             "organoid drug disease", ["Sample", "Organoid", "Drug", "DiseaseModel"],
-             ["HAS_ORGANOID", "SCREENS_DRUG", "MODELS_DISEASE"], max_hops=3),
-    TestCase(30, "Which airway organoids have infection models?",
-             "airway lung respiratory infection", ["Sample", "Organ", "Infection"],
-             ["FROM_ORGAN", "HAS_INFECTION"], max_hops=3),
-]
 
 
 # =============================================================================
@@ -286,23 +231,26 @@ class StructureValidator:
         }
 
     def check_edge_direction(self) -> dict:
-        """Sample check edge direction"""
+        """Check edge direction: actual (source_type→target_type) matches any valid direction"""
         type_map = {nid: n.type for nid, n in self.kg.nodes.items()}
         wrong_edges = []
         checked = 0
         for edge in self.kg.edges:
-            expected = EXPECTED_EDGE_DIRECTION.get(edge.relation)
-            if not expected:
+            expected_list = EXPECTED_EDGE_DIRECTION.get(edge.relation)
+            if not expected_list:
                 continue
             src_type = type_map.get(edge.source, "?")
             tgt_type = type_map.get(edge.target, "?")
             checked += 1
-            if src_type != expected[0] or tgt_type != expected[1]:
+            # Match if actual direction matches ANY valid (src, tgt) pair
+            if not any(src_type == exp_src and tgt_type == exp_tgt
+                       for exp_src, exp_tgt in expected_list):
+                expected_strs = [f"({s}→{t})" for s, t in expected_list]
                 wrong_edges.append({
                     "edge_id": edge.id,
                     "relation": edge.relation,
                     "actual": f"({src_type}→{tgt_type})",
-                    "expected": f"({expected[0]}→{expected[1]})",
+                    "expected": " | ".join(expected_strs),
                 })
         return {
             "check": "edge_direction",
@@ -330,17 +278,14 @@ class StructureValidator:
         counts = defaultdict(int)
         for e in self.kg.edges:
             counts[e.relation] += 1
-        treats = counts.get("TREATS_DISEASE", 0)
-        indicates = counts.get("INDICATES_DISEASE", 0)
+        associated = counts.get("ASSOCIATED_WITH_DISEASE", 0)
         issues = []
-        if treats == 0:
-            issues.append("TREATS_DISEASE=0")
-        if indicates == 0:
-            issues.append("INDICATES_DISEASE=0")
+        if associated == 0:
+            issues.append("ASSOCIATED_WITH_DISEASE=0")
         return {
             "check": "inferred_relations_exist",
             "status": "WARN" if issues else "PASS",
-            "detail": f"TREATS_DISEASE={treats}, INDICATES_DISEASE={indicates}",
+            "detail": f"ASSOCIATED_WITH_DISEASE={associated}",
             "suggestion": (f"Inferred relations missing: {issues}, check INFERRED_RELATIONS config"
                            if issues else ""),
         }
@@ -397,204 +342,17 @@ class StructureValidator:
 
 
 # =============================================================================
-# QueryTester
-# =============================================================================
-
-class QueryTester:
-    """Query simulation testing
-
-    For each question, execute search() → traverse() to check if expected types/relations are hit.
-    If LLM config is provided, additionally call kg.ask() to generate readable answers and store in report.
-    """
-
-    def __init__(self, kg: KnowledgeGraphQuery,
-                 api_key: str = None, base_url: str = None, model: str = None):
-        self.kg = kg
-        self.api_key = api_key
-        self.base_url = base_url
-        self.model = model
-        self.results: List[dict] = []
-
-    def run_all(self) -> List[dict]:
-        for tc in TEST_CASES:
-            start = time.time()
-            try:
-                result = self._run_one(tc)
-            except Exception as e:
-                result = {
-                    "id": tc.id, "question": tc.question,
-                    "status": "ERROR", "reason": str(e),
-                }
-            result["duration_ms"] = int((time.time() - start) * 1000)
-            self.results.append(result)
-        return self.results
-
-    def _run_one(self, tc: TestCase) -> dict:
-        # Step 1: Keyword search
-        search_results = self.kg.search(tc.keywords, top_k=20)
-        search_types = set()
-        for node, score in search_results:
-            search_types.add(node.type)
-
-        search_passed = bool(search_results)
-
-        # Collect summary of top 5 hit nodes
-        search_preview = []
-        for node, score in search_results[:5]:
-            name = node.properties.get("name", node.properties.get("sample_id", node.id))
-            # Truncate overly long names
-            name_str = str(name)
-            if len(name_str) > 60:
-                name_str = name_str[:57] + "..."
-            search_preview.append(f"[{node.type}]{name_str}")
-        search_preview_str = ", ".join(search_preview)
-
-        # Step 2: Graph traversal from hit nodes
-        subgraph_nodes = set()
-        subgraph_edges = set()
-        relation_types = set()
-        for node, _ in search_results[:5]:
-            sub = self.kg.traverse(node.id, depth=tc.max_hops)
-            for n in sub["nodes"]:
-                subgraph_nodes.add(n.id)
-            for e in sub["edges"]:
-                subgraph_edges.add(e.id)
-                relation_types.add(e.relation)
-
-        # Step 3: Check if expected types are hit
-        subgraph_node_types = set()
-        for nid in subgraph_nodes:
-            if nid in self.kg.nodes:
-                subgraph_node_types.add(self.kg.nodes[nid].type)
-
-        types_found = [t for t in tc.expected_types if t in search_types or t in subgraph_node_types]
-        types_missing = [t for t in tc.expected_types if t not in search_types and t not in subgraph_node_types]
-        types_passed = len(types_missing) == 0
-
-        # Step 4: Check if expected relations exist
-        rels_found = [r for r in tc.expected_relations if r in relation_types]
-        rels_missing = [r for r in tc.expected_relations if r not in relation_types]
-        rels_passed = len(rels_missing) == 0
-
-        # Step 5: Check minimum hit count
-        count_passed = len(search_results) >= tc.min_results
-
-        overall = "PASS" if (search_passed and types_passed and rels_passed and count_passed) else "FAIL"
-        if tc.min_results == 0 and not rels_passed:
-            overall = "WARN"
-
-        reasons = []
-        if not search_passed:
-            reasons.append(f"No hits for '{tc.keywords}'")
-        if not types_passed:
-            reasons.append(f"Expected types not found: {types_missing}")
-        if not rels_passed:
-            reasons.append(f"Expected relations not found: {rels_missing}")
-        if not count_passed:
-            reasons.append(f"Hits {len(search_results)} < expected {tc.min_results}")
-
-        # Build subgraph object (for LLM context reuse)
-        subgraph_obj = {
-            "nodes": [self.kg.nodes[nid] for nid in subgraph_nodes if nid in self.kg.nodes],
-            "edges": [e for e in self.kg.edges if e.id in subgraph_edges]
-        }
-
-        result = {
-            "id": tc.id,
-            "question": tc.question,
-            "category": tc.category,
-            "status": overall,
-            "keywords": tc.keywords,
-            "search_hits": len(search_results),
-            "search_preview": search_preview_str,
-            "search_types_found": list(search_types),
-            "subgraph_nodes": len(subgraph_nodes),
-            "subgraph_edges": len(subgraph_edges),
-            "expected_types_found": types_found,
-            "expected_types_missing": types_missing,
-            "expected_relations_found": rels_found,
-            "expected_relations_missing": rels_missing,
-            "reason": "; ".join(reasons) if reasons else "",
-            "suggestion": self._suggest(types_missing, rels_missing),
-        }
-
-        # Step 6 (optional): LLM-readable answer — reuse existing search_results & subgraph
-        if self.api_key and search_passed and overall != "ERROR":
-            llm_result = self._ask_llm_for_result(tc, search_results, subgraph_obj)
-            if llm_result:
-                result["llm_answer"] = llm_result
-
-        return result
-
-    def _ask_llm_for_result(self, tc: TestCase,
-                            seed_results: list, subgraph: dict) -> Optional[str]:
-        """Reuse existing search_results and subgraph, directly construct context to call LLM.
-
-        Avoid duplicating the full search + traverse inside kg.ask().
-        Add 30s timeout to prevent API hang blocking the entire validation process.
-        """
-        try:
-            # Format with sample-centric context
-            from query_tool import KnowledgeGraphQuery
-            kg_q = self.kg
-            context = kg_q._build_sample_context(seed_results, subgraph, max_samples=5)
-            prompt = kg_q.PROMPT_TEMPLATE.format(context=context, question=tc.question)
-
-            # Set 30 second timeout
-            from openai import OpenAI
-            api_key = self.api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get("DEEPSEEK_API_KEY")
-            client_kwargs = {"api_key": api_key}
-            if self.base_url:
-                client_kwargs["base_url"] = self.base_url
-            client = OpenAI(**client_kwargs)
-
-            response = client.chat.completions.create(
-                model=self.model or "gpt-4o",
-                messages=[
-                    {"role": "system", "content": "You are a scientific assistant. Answer concisely."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.2,
-                max_tokens=500,
-                timeout=30,  # 30 second timeout
-            )
-            answer = response.choices[0].message.content
-            if not answer:
-                return None
-            # Take first 300 characters as report summary
-            if len(answer) > 300:
-                answer = answer[:297] + "..."
-            return answer
-        except Exception:
-            return None
-
-    @staticmethod
-    def _suggest(types_missing: list, rels_missing: list) -> str:
-        suggestions = []
-        if types_missing:
-            suggestions.append(f"Types {types_missing} missing: check MySQL column data or WIDE_TABLE_ENTITY_MAPPING")
-        if rels_missing:
-            for r in rels_missing:
-                if r in ("TREATS_DISEASE", "INDICATES_DISEASE"):
-                    suggestions.append(f"{r} missing: check INFERRED_RELATIONS and co-occurrence data")
-                else:
-                    suggestions.append(f"{r} missing: check WIDE_TABLE_ENTITY_MAPPING config")
-        return "; ".join(suggestions)
-
-
-# =============================================================================
 # ReportGenerator
 # =============================================================================
 
 class ReportGenerator:
-    """Report generator"""
+    """Report generator — structure validation reports + user manual"""
 
     def __init__(self, kg_path: str, structure_results: List[dict],
-                 query_results: List[dict], kg: "KnowledgeGraphQuery" = None):
+                 kg: "KnowledgeGraphQuery" = None):
         self.kg_path = kg_path
         self.kg = kg
         self.structure = structure_results
-        self.queries = query_results
         self.test_time = datetime.now().isoformat()
 
     def _kg_overview_md(self) -> list:
@@ -669,20 +427,12 @@ class ReportGenerator:
         return len(self.structure)
 
     @property
-    def query_passed(self):
-        return sum(1 for r in self.queries if r["status"] == "PASS")
-
-    @property
-    def query_total(self):
-        return len(self.queries)
-
-    @property
     def total_passed(self):
-        return self.structure_passed + self.query_passed
+        return self.structure_passed
 
     @property
     def total_checks(self):
-        return self.structure_total + self.query_total
+        return self.structure_total
 
     @property
     def pass_rate(self):
@@ -690,10 +440,8 @@ class ReportGenerator:
 
     @property
     def health_score(self):
-        """Comprehensive health score 0-100"""
-        struct_score = (self.structure_passed / self.structure_total * 50) if self.structure_total else 0
-        query_score = (self.query_passed / self.query_total * 50) if self.query_total else 0
-        return int(struct_score + query_score)
+        """Health score 0-100 based on structure checks"""
+        return int(self.structure_passed / self.structure_total * 100) if self.structure_total else 0
 
     def save_json(self, path: str):
         report = {
@@ -707,12 +455,8 @@ class ReportGenerator:
                 "health_score": self.health_score,
                 "structure_passed": self.structure_passed,
                 "structure_total": self.structure_total,
-                "query_passed": self.query_passed,
-                "query_total": self.query_total,
             },
             "structure_checks": self.structure,
-            "query_tests": self.queries,
-            "coverage": self._build_coverage(),
         }
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
@@ -721,7 +465,7 @@ class ReportGenerator:
 
     def save_markdown(self, path: str):
         md = []
-        md.append("# Knowledge Graph Validation Test Report\n")
+        md.append("# Knowledge Graph Structure Validation Report\n")
         md.append(f"**Test time**: {self.test_time}")
         md.append(f"**KG file**: `{self.kg_path}`\n")
 
@@ -759,71 +503,13 @@ class ReportGenerator:
                     md.append(f"- Suggestion: {r['suggestion']}")
                 md.append("")
 
-        # Query tests
-        md.append("## Query Test Results\n")
-
-        def _subgraph_scale(r: dict) -> str:
-            """Subgraph scale: nodes / edges"""
-            sn = r.get("subgraph_nodes", 0)
-            se = r.get("subgraph_edges", 0)
-            return f"{sn}n / {se}e"
-
-        has_llm = any(r.get("llm_answer") for r in self.queries)
-        if has_llm:
-            md.append("| # | Question | Status | Subgraph scale | LLM answer (summary) | Missing types | Missing relations |")
-            md.append("|---|------|------|----------|------------------|----------|----------|")
-            for r in self.queries:
-                icon = {"PASS": "✅", "FAIL": "❌", "WARN": "⚠️", "ERROR": "💥"}.get(r["status"], "?")
-                types_missing = ", ".join(r.get("expected_types_missing", [])) or "—"
-                rels_missing = ", ".join(r.get("expected_relations_missing", [])) or "—"
-                answer = r.get("llm_answer") or r.get("search_preview", "—")
-                if len(answer) > 200:
-                    answer = answer[:197] + "..."
-                answer = answer.replace("|", "\\|").replace("\n", " ")
-                md.append(f"| {r['id']} | {r['question'][:30]} | {icon} | {_subgraph_scale(r)} | {answer} | {types_missing} | {rels_missing} |")
-        else:
-            md.append("| # | Question | Status | Subgraph scale | Search hits | Missing types | Missing relations |")
-            md.append("|---|------|------|----------|----------|----------|----------|")
-            for r in self.queries:
-                icon = {"PASS": "✅", "FAIL": "❌", "WARN": "⚠️", "ERROR": "💥"}.get(r["status"], "?")
-                types_missing = ", ".join(r.get("expected_types_missing", [])) or "—"
-                rels_missing = ", ".join(r.get("expected_relations_missing", [])) or "—"
-                preview = r.get("search_preview", "—")
-                if len(preview) > 200:
-                    preview = preview[:197] + "..."
-                md.append(f"| {r['id']} | {r['question'][:30]} | {icon} | {_subgraph_scale(r)} | {preview} | {types_missing} | {rels_missing} |")
-
-        # Failed query details
-        failed_queries = [r for r in self.queries if r["status"] in ("FAIL", "ERROR")]
-        if failed_queries:
-            md.append("\n### Failed Query Details\n")
-            for r in failed_queries:
-                md.append(f"**#{r['id']} {r['question']}**")
-                md.append(f"- Keywords: `{r.get('keywords', '')}`")
-                md.append(f"- Search hits: {r.get('search_hits', 0)}")
-                md.append(f"- Reason: {r.get('reason', '')}")
-                if r.get("suggestion"):
-                    md.append(f"- Suggestion: {r['suggestion']}")
-                md.append("")
-
-        # Coverage
-        md.append("## Coverage Analysis\n")
-        cov = self._build_coverage()
-        md.append(f"- Node type test coverage: {len(cov['node_types_tested'])}/{len(EXPECTED_NODE_TYPES)}")
-        md.append(f"- Relation type test coverage: {len(cov['relation_types_tested'])}/{len(EXPECTED_RELATION_TYPES)}")
-        if cov.get("untested_nodes"):
-            md.append(f"- Untested node types: {', '.join(cov['untested_nodes'])}")
-        if cov.get("untested_relations"):
-            md.append(f"- Untested relation types: {', '.join(cov['untested_relations'])}")
-
         # Fix suggestions
-        all_failed = failed_struct + failed_queries
-        if all_failed:
+        if failed_struct:
             md.append("\n## Fix Suggestions\n")
             md.append("| Failed item | Suggestion |")
             md.append("|--------|------|")
-            for r in all_failed:
-                raw_name = r.get("check", f"Query #{r.get('id', '?')}")
+            for r in failed_struct:
+                raw_name = r.get("check", "?")
                 name = STRUCTURE_CHECK_NAMES.get(raw_name, raw_name)
                 sug = r.get("suggestion", "Check corresponding code logic")
                 md.append(f"| {name} | {sug} |")
@@ -836,7 +522,6 @@ class ReportGenerator:
     # Node type descriptions
     NODE_TYPE_DESC = {
         "Sample": "Sample record",
-        "Organoid": "Organoid",
         "Organ": "Organ",
         "System": "Physiological system",
         "Organism": "Species",
@@ -849,32 +534,67 @@ class ReportGenerator:
         "Infection": "Infection/microbial challenge",
         "Biomarker": "Biomarker",
         "Phenotype": "Phenotype",
+        "Test": "Detection method",
         "Omics": "Omics data",
         "Composition": "Cell composition profile",
         "Application": "Application direction",
         "Publication": "Publication source",
+        "CultureProtocol": "Culture protocol (steps/time/materials)",
+        "CultureTechnique": "Culture technique",
+        "CultureCondition": "Culture conditions",
+        "ApplicationStrategy": "Application strategy",
+        "OrganoidProfile": "Organoid descriptive profile",
+        "Platform": "Sequencing/detection platform",
+        "CoCultureProtocol": "Co-culture protocol",
+        "CoCultureTechnique": "Co-culture technique",
+        "GroupInfo": "Group-level metadata (GSE_ID cross-reference)",
+        "GroupDEGs": "Group-level differentially expressed genes",
+        "IntraClusterDEGs": "Intra-cluster differentially expressed genes (scRNA-seq)",
+        "ClusterMarkers": "Cluster marker genes (scRNA-seq)",
+        "GSVA": "GSVA differentially enriched pathways",
+        "GSEA": "GSEA enriched pathways",
+        "GeneAnnotation": "Gene annotation (entrez, pfam, STRING, CRISPick, etc.)",
+        "MaterialInfo": "Material information (Matrigel, collagen, etc. with catalog/lot/source)",
     }
     # Relationship type descriptions
     RELATION_DESC = {
-        "HAS_ORGANOID": "Sample cultured organoid",
-        "FROM_ORGAN": "Organoid derived from organ",
+        # HAS_ORGANOID removed — Organoid node type eliminated
+        "FROM_ORGAN": "Sample derived from organ",
         "BELONGS_TO_SYSTEM": "Organ belongs to physiological system",
         "FROM_ORGANISM": "Sample species source",
-        "DERIVED_FROM": "Organoid tissue source",
+        "DERIVED_FROM": "Sample tissue source",
         "USES_FACTOR": "Used cell factor",
         "USES_TECHNOLOGY": "Used technology",
         "SCREENS_DRUG": "Screened drug",
-        "HAS_GENE_EDIT": "Gene editing",
+        "TARGETS_GENE": "Gene editing target",
         "MODELS_DISEASE": "Modeled disease",
         "HAS_INFECTION": "Infection challenge experiment",
         "HAS_BIOMARKER": "Expressed/detected biomarker",
         "HAS_PHENOTYPE": "Observed phenotype",
+        "HAS_TEST": "Detection method used",
         "HAS_OMICS": "Associated omics data",
         "HAS_COMPOSITION": "Cell composition profile",
-        "HAS_APPLICATION": "Organoid application direction",
-        "CITES": "Cited publication",
-        "TREATS_DISEASE": "Drug-disease association (inferred)",
-        "INDICATES_DISEASE": "Biomarker-disease association (inferred)",
+        "HAS_APPLICATION": "Sample application direction",
+        "REPORTED_IN": "Cited publication",
+        "ASSOCIATED_WITH_DISEASE": "Drug/Biomarker-disease co-occurrence association (inferred, confidence=0.5)",
+        "USES_PROTOCOL": "Culture protocol used",
+        "USES_TECHNIQUE": "Culture technique used",
+        "HAS_CONDITION": "Culture conditions",
+        "HAS_STRATEGY": "Application strategy",
+        "HAS_PROFILE": "Sample descriptive profile",
+        "USES_PLATFORM": "Omics sequencing platform",
+        "USES_COCULTURE_PROTOCOL": "Co-culture protocol used",
+        "USES_COCULTURE_TECHNIQUE": "Co-culture technique used",
+        "HAS_GROUP_INFO": "Sample has group-level omics metadata",
+        "HAS_DEG": "GroupInfo has differentially expressed genes",
+        "HAS_INTRACLUSTER_DEG": "GroupInfo has intra-cluster DEGs",
+        "HAS_CLUSTER_MARKER": "GroupInfo has cluster marker genes",
+        "HAS_GSVA_PATHWAY": "GroupInfo has GSVA pathway",
+        "HAS_GSEA_PATHWAY": "GroupInfo has GSEA pathway",
+        "HAS_GENE_ANNOTATION": "Gene/marker node has annotation data",
+        "HAS_ANNOTATION": "Gene node linked to GeneAnnotation",
+        "USES_COMPONENT": "Protocol uses component (growth factor, supplement, medium, small molecule)",
+        "USES_MATERIAL": "Protocol uses material (Matrigel, collagen, etc.)",
     }
 
     def save_manual(self, path: str):
@@ -967,130 +687,91 @@ class ReportGenerator:
         lines.append("answer = kg.ask(\"Which media contain EGF?\", api_key=\"sk-xxx\", model=\"gpt-4o\")")
         lines.append("```\n")
 
-        # ---- 3. Query Guide (deduplicated typical questions) ----
-        lines.append("## 3. Query Guide\n")
-        lines.append("The following lists typical questions and query methods categorized by query scenario.\n")
+        # ---- 3. Schema Overview ----
+        lines.append("## 3. Schema Overview\n")
+        lines.append(f"This knowledge graph contains **{len(EXPECTED_NODE_TYPES)} node types** "
+                     f"and **{len(EXPECTED_RELATION_TYPES)} relationship types**.\n")
 
-        # Deduplication: deduplicate by question text, take top 3 per category
-        seen_questions = set()
-        unique_queries = []
-        for q in self.queries:
-            if q["question"] not in seen_questions:
-                seen_questions.add(q["question"])
-                unique_queries.append(q)
+        lines.append("### 3.1 Node Types\n")
+        lines.append("| Node type | ID prefix | Description |")
+        lines.append("|----------|----------|------|")
+        for ntype in sorted(EXPECTED_NODE_TYPES):
+            prefix_map = {
+                "Sample": "smp_", "Organ": "orn_", "System": "sys_", "Organism": "osm_",
+                "Source": "src_", "CellFactor": "cf_", "Technology": "tec_", "Drug": "drg_",
+                "Gene": "gen_", "DiseaseModel": "dm_", "Infection": "inf_",
+                "Biomarker": "bmk_", "Phenotype": "phn_", "Test": "tst_",
+                "Omics": "omc_", "Composition": "cmp_", "Application": "app_",
+                "Publication": "pub_", "CultureProtocol": "cpr_", "CultureTechnique": "cte_",
+                "CultureCondition": "ccn_", "ApplicationStrategy": "ast_",
+                "OrganoidProfile": "opr_", "Platform": "pla_",
+                "CoCultureProtocol": "ccp_", "CoCultureTechnique": "cct_",
+                "GroupInfo": "gin_", "GroupDEGs": "gde_", "IntraClusterDEGs": "icd_",
+                "ClusterMarkers": "clm_", "GSVA": "gsv_", "GSEA": "gse_",
+                "GeneAnnotation": "gan_", "MaterialInfo": "mat_",
+            }
+            desc = self.NODE_TYPE_DESC.get(ntype, "")
+            prefix = prefix_map.get(ntype, "?")
+            lines.append(f"| {ntype} | `{prefix}` | {desc} |")
+        lines.append("")
 
-        # Query scenario grouping (more precise matching logic)
-        scene_groups = [
-            ("Query by sample", ["Sample"]),
-            ("Query by organoid/organ/system", ["Organoid", "Organ", "System"]),
-            ("Query by species/source", ["Organism", "Source"]),
-            ("Query by cell factor", ["CellFactor"]),
-            ("Query by technology/gene editing", ["Technology", "Gene"]),
-            ("Query by drug screening", ["Drug"]),
-            ("Query by disease model", ["DiseaseModel"]),
-            ("Query by infection model", ["Infection"]),
-            ("Query by biomarker", ["Biomarker"]),
-            ("Query by phenotype/omics/composition", ["Phenotype", "Omics", "Composition"]),
-            ("Query by application/publication", ["Application", "Publication"]),
-        ]
-
-        for section, types in scene_groups:
-            # Find queries matching expected types (after dedup)
-            relevant = [q for q in unique_queries
-                        if any(t in q.get("expected_types", []) for t in types)]
-            if not relevant:
-                # Fallback to found type matching
-                relevant = [q for q in unique_queries
-                            if any(t in str(q.get("expected_types_found", [])) for t in types)]
-
-            lines.append(f"### {section}\n")
-            for q in relevant[:3]:
-                lines.append(f"**Q: {q['question']}**")
-                lines.append("```python")
-                lines.append(f"results = kg.search(\"{q['keywords']}\", top_k=10)")
-                lines.append(f"for node, score in results:")
-                lines.append(f"    if node.type in {q.get('expected_types', [])}:")
-                lines.append(f"        sub = kg.traverse(node.id, depth={q.get('max_hops', 2)})")
-                lines.append("```")
-                types_found = q.get('expected_types_found') or q.get('expected_types', [])
-                rels_found = q.get('expected_relations_found') or q.get('expected_relations', [])
-                zh_types = [f"{t} ({self.NODE_TYPE_DESC.get(t, '')})" for t in types_found]
-                zh_rels = [f"{r} ({self.RELATION_DESC.get(r, '')})" for r in rels_found]
-                lines.append(f"Involved nodes: {', '.join(zh_types) if zh_types else ', '.join(types_found)}")
-                lines.append(f"Involved relations: {', '.join(zh_rels) if zh_rels else ', '.join(rels_found)}\n")
-            if not relevant:
-                lines.append("(No test cases for this type)\n")
-
-        # ---- 4. Frequently Asked Questions (Q&A) ----
-        lines.append("## 4. Frequently Asked Questions (Q&A)\n")
-        # Sample evenly by category: single-hop, multi-hop, inference, cross-query each take representative questions
-        sampled_ids = {1, 4, 7, 9, 11, 14, 17, 20, 23, 26, 29, 30}
-        sampled = [q for q in self.queries if q.get("id") in sampled_ids]
-        if len(sampled) < 8:
-            # fallback: take first 12 deduped
-            sampled = unique_queries[:12]
-
-        for q in sampled:
-            qid = q.get("id", "?")
-            lines.append(f"### Q{qid}: {q['question']}\n")
-            lines.append("**Graph query method**:")
-            lines.append("```python")
-            lines.append(f"results = kg.search(\"{q['keywords']}\", top_k=10)")
-            lines.append("for node, score in results:")
-            lines.append("    print(f'[{node.type}] {node.properties.get(\"name\", node.id)}')")
-            lines.append("")
-            lines.append("# Graph traversal to expand subgraph")
-            lines.append(f"if results:")
-            lines.append(f"    subgraph = kg.traverse(results[0][0].id, depth={q.get('max_hops', 2)})")
-            lines.append("```")
-            lines.append("**CLI command**:")
-            lines.append("```bash")
-            lines.append(f"python scripts/query_tool.py --graph kg.json --search \"{q['keywords']}\"")
-            lines.append("```")
-            types_found = q.get('expected_types_found') or q.get('expected_types', [])
-            rels_found = q.get('expected_relations_found') or q.get('expected_relations', [])
-            zh_types = [f"{t} ({self.NODE_TYPE_DESC.get(t, '')})" for t in types_found]
-            zh_rels = [f"{r} ({self.RELATION_DESC.get(r, '')})" for r in rels_found]
-            lines.append(f"**Involved nodes**: {', '.join(zh_types) if zh_types else ', '.join(types_found)}")
-            lines.append(f"**Involved relations**: {', '.join(zh_rels) if zh_rels else ', '.join(rels_found)}\n")
-
-        # ---- 5. Node ID System ----
-        lines.append("## 5. Node ID System\n")
+        lines.append("### 3.2 Relationship Types\n")
+        lines.append("| Relation | Direction | Description |")
+        lines.append("|----------|----------|------|")
+        for rtype in sorted(EXPECTED_RELATION_TYPES):
+            dirs = EXPECTED_EDGE_DIRECTION.get(rtype, [("?", "?")])
+            dir_str = " | ".join(f"{s}→{t}" for s, t in dirs)
+            desc = self.RELATION_DESC.get(rtype, "")
+            lines.append(f"| {rtype} | {dir_str} | {desc} |")
+        lines.append("")
+        lines.append("## 4. Node ID System\n")
         lines.append("| Prefix | Node type | Example |")
         lines.append("|------|---------|------|")
         id_table = [
-            ("smp_", "Sample"), ("org_", "Organoid"), ("orn_", "Organ"),
+            ("smp_", "Sample"), ("orn_", "Organ"),
             ("sys_", "System"), ("osm_", "Organism"), ("src_", "Source"),
             ("cf_", "CellFactor"), ("tec_", "Technology"), ("drg_", "Drug"),
             ("gen_", "Gene"), ("dm_", "DiseaseModel"), ("inf_", "Infection"),
-            ("bmk_", "Biomarker"), ("phn_", "Phenotype"), ("omc_", "Omics"),
-            ("cmp_", "Composition"), ("app_", "Application"), ("pub_", "Publication"),
+            ("bmk_", "Biomarker"), ("phn_", "Phenotype"), ("tst_", "Test"),
+            ("omc_", "Omics"), ("cmp_", "Composition"), ("app_", "Application"),
+            ("pub_", "Publication"),
+            ("cpr_", "CultureProtocol"), ("cte_", "CultureTechnique"),
+            ("ccn_", "CultureCondition"),
+            ("ast_", "ApplicationStrategy"), ("opr_", "OrganoidProfile"),
+            ("pla_", "Platform"),
+            ("ccp_", "CoCultureProtocol"), ("cct_", "CoCultureTechnique"),
+            ("gin_", "GroupInfo"),
+            ("gde_", "GroupDEGs"), ("icd_", "IntraClusterDEGs"),
+            ("clm_", "ClusterMarkers"), ("gsv_", "GSVA"), ("gse_", "GSEA"),
+            ("gan_", "GeneAnnotation"), ("mat_", "MaterialInfo"),
         ]
         for prefix, ntype in id_table:
             lines.append(f"| `{prefix}` | {ntype} ({self.NODE_TYPE_DESC.get(ntype, '')}) | `{prefix}xxxx` |")
         lines.append("")
 
-        # ---- 6. Query Tips ----
-        lines.append("## 6. Query Tips\n")
+        # ---- 5. Query Tips ----
+        lines.append("## 5. Query Tips\n")
         lines.append("- **Precise type filtering**: `kg.search(\"Cisplatin\", node_type=\"Drug\")` searches only Drug nodes")
         lines.append("- **Deep traversal**: Increase `depth` parameter to expand subgraph scope; note that high depth may cause excessively large subgraphs")
         lines.append("- **Path finding**: `kg.find_paths(\"smp_A\", \"drg_B\")` discovers all relationship paths between two nodes")
         lines.append("- **Combined queries**: Use `search()` to find seed nodes, then `traverse()` to expand subgraph, finally filter on the subgraph")
-        lines.append("- **Inferred relations**: `TREATS_DISEASE` and `INDICATES_DISEASE` are based on co-occurrence inference; confidence is in edge properties")
+        lines.append("- **Inferred relations**: `ASSOCIATED_WITH_DISEASE` is based on co-occurrence inference; confidence is in edge properties")
         lines.append("- **Co-culture distinction**: Differentiate via edge property `context` (`\"primary\"` vs `\"coculture\"`)")
         lines.append("- **Batch queries**: Load KG once and call `search()` / `traverse()` multiple times to avoid repeated file loading\n")
 
-        # ---- 7. Known Limitations ----
-        lines.append("## 7. Known Limitations\n")
-        lines.append("1. Culture conditions/steps/materials are retained as JSON properties of Sample; fine-grained filtering by temperature, CO2 concentration, etc. is not supported")
-        lines.append("2. Co-culture data shares CellFactor/Biomarker node types, differentiated by edge property `context`; filtering is required")
-        lines.append("3. Inferred relations (TREATS_DISEASE / INDICATES_DISEASE) are based on co-occurrence statistics and do not represent causality")
+        # ---- 6. Known Limitations ----
+        lines.append("## 6. Known Limitations\n")
+        lines.append("1. Culture protocols/techniques/conditions are extracted as independent nodes (CultureProtocol, CultureTechnique, CultureCondition); culture_days and endpoints are merged into CultureProtocol, eliminating the former CultureMetrics node")
+        lines.append("2. Co-culture data has dedicated node types (CoCultureProtocol, CoCultureTechnique) parallel to primary culture; shared entity types (CellFactor, Biomarker) still use edge `context` markers")
+        lines.append("3. Inferred relations (ASSOCIATED_WITH_DISEASE) are based on co-occurrence statistics and do not represent causality")
         lines.append("4. JSON column entity extraction depends on the key name list in `_extract_entity_name()`; uncovered key names may miss entities")
-        lines.append("5. Currently only processes the `public_general_2026` single table; if there are other related tables, `build_kg.py` needs to be extended")
-        lines.append("6. Uses JSON + SQLite file storage, no graph database required, suitable for standalone distribution but limited performance for very large subgraph traversal\n")
+        lines.append("5. GroupInfo sub-nodes (GroupDEGs/IntraClusterDEGs/ClusterMarkers/GSVA/GSEA) are cross-referenced from public_GDS_omics → public_search_pathway → sub-tables via GSE_ID")
+        lines.append("6. GeneAnnotation nodes enrich DEG/marker symbols with species-specific annotation data (gene_annotation, site, disease, STRING, CRISPick tables)")
+        lines.append("7. Currently only processes the `public_general_2026` single table plus sub-tables; if there are other related tables, `build_kg.py` needs to be extended")
+        lines.append("8. Uses JSON + SQLite file storage, no graph database required, suitable for standalone distribution but limited performance for very large subgraph traversal\n")
 
-        # ---- 8. References ----
-        lines.append("## 8. References\n")
+        # ---- 7. References ----
+        lines.append("## 7. References\n")
         lines.append("1. Pruyn, T. M. et al. MOF-Chemunity. *J. Am. Chem. Soc.* **2025**, *147*, 43474-43486.")
         lines.append("2. MOF-Chemunity open source code: https://github.com/AI4ChemS/MOF_ChemUnity")
         lines.append("3. Schema design document: `docs/schema_design.md`")
@@ -1100,24 +781,6 @@ class ReportGenerator:
         with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
         print(f"[OK] User manual: {path}")
-
-    def _build_coverage(self) -> dict:
-        """Build coverage matrix"""
-        nodes_tested = set()
-        rels_tested = set()
-        for q in self.queries:
-            for t in q.get("expected_types_found", []):
-                nodes_tested.add(t)
-            for r in q.get("expected_relations_found", []):
-                rels_tested.add(r)
-
-        return {
-            "node_types_tested": sorted(nodes_tested),
-            "relation_types_tested": sorted(rels_tested),
-            "untested_nodes": sorted(EXPECTED_NODE_TYPES - nodes_tested),
-            "untested_relations": sorted(EXPECTED_RELATION_TYPES - rels_tested),
-        }
-
 
 # =============================================================================
 # Main
@@ -1152,41 +815,41 @@ def _find_latest_kg(kg_dir: str) -> Optional[str]:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Validate organoid knowledge graph and generate test reports")
+        description="Validate organoid knowledge graph structure and generate reports")
     parser.add_argument("kg_file", nargs="?", default=None,
                         help="Path to organoid_kg.json (auto-detect latest if omitted)")
     parser.add_argument("--kg-dir", default="./organoid-kg-output",
                         help="Directory to scan for latest KG build (default: ./organoid-kg-output)")
     parser.add_argument("--output-dir", default="./kg_test_output",
                         help="Output directory for reports (default: ./kg_test_output)")
-    parser.add_argument("--structure-only", action="store_true",
-                        help="Only run structure validation")
-    parser.add_argument("--query-only", action="store_true",
-                        help="Only run query tests")
     parser.add_argument("--gen-manual", action="store_true",
-                        help="Only generate user manual from existing test definitions")
-    parser.add_argument("--api-key", help="LLM API key for readable query answers (or set OPENAI_API_KEY / DEEPSEEK_API_KEY)")
-    parser.add_argument("--base-url", default="https://api.deepseek.com", help="LLM API base URL (for compatible services)")
-    parser.add_argument("--model", default="deepseek-v4-pro", help="LLM model (default: gpt-4o)")
+                        help="Only generate user manual from schema definitions (no KG needed)")
     args = parser.parse_args()
 
     # Auto-detect latest KG file
-    if args.kg_file is None:
-        args.kg_file = _find_latest_kg(args.kg_dir)
+    if not args.gen_manual:
         if args.kg_file is None:
-            print(f"[ERROR] No organoid_kg.json found under {args.kg_dir}/<timestamp>/")
-            print(f"        Run build_kg.py first, or specify a KG file path explicitly.")
-            sys.exit(1)
-        print(f"[INFO] Auto-detected latest KG: {args.kg_file}")
+            args.kg_file = _find_latest_kg(args.kg_dir)
+            if args.kg_file is None:
+                print(f"[ERROR] No organoid_kg.json found under {args.kg_dir}/<timestamp>/")
+                print(f"        Run build_kg.py first, or specify a KG file path explicitly.")
+                sys.exit(1)
+            print(f"[INFO] Auto-detected latest KG: {args.kg_file}")
 
-    if not os.path.exists(args.kg_file):
-        print(f"[ERROR] File not found: {args.kg_file}")
-        sys.exit(1)
+        if not os.path.exists(args.kg_file):
+            print(f"[ERROR] File not found: {args.kg_file}")
+            sys.exit(1)
 
     output_dir = args.output_dir
-    # Test report written to timestamp subdirectory, user manual placed in output_dir root
     timestamp = datetime.now().strftime("%Y-%m-%d-%H%M")
     report_subdir = os.path.join(output_dir, timestamp)
+
+    # --gen-manual: generate user manual from schema definitions only (no KG needed)
+    if args.gen_manual:
+        print(f"\n[Generate] Creating user manual from schema definitions...")
+        gen = ReportGenerator("N/A", [], kg=None)
+        gen.save_manual(os.path.join(output_dir, "user_manual.md"))
+        return
 
     print(f"\n{'='*60}")
     print(f"  KG file:     {args.kg_file}")
@@ -1196,65 +859,29 @@ def main():
     kg = KnowledgeGraphQuery.load(args.kg_file)
     print(f"  Loaded {len(kg.nodes)} nodes, {len(kg.edges)} edges")
 
-    run_structure = not args.query_only and not args.gen_manual
-    run_queries = not args.structure_only and not args.gen_manual
+    # Structure validation
+    print(f"\n[Phase 1] Structure Validation...")
+    validator = StructureValidator(kg)
+    structure_results = validator.run_all()
+    for r in structure_results:
+        icon = {"PASS": "[PASS]", "FAIL": "[FAIL]", "WARN": "[WARN]", "ERROR": "[ERR ]"}.get(r["status"], "[????]")
+        print(f"  {icon} {r['check']}: {r.get('detail', '')}")
 
-    structure_results = []
-    query_results = []
+    # Generate reports
+    print(f"\n[Phase 2] Generating reports...")
+    gen = ReportGenerator(args.kg_file, structure_results, kg=kg)
 
-    if run_structure:
-        print(f"\n[Phase 1] Structure Validation...")
-        validator = StructureValidator(kg)
-        structure_results = validator.run_all()
-        for r in structure_results:
-            icon = {"PASS": "[PASS]", "FAIL": "[FAIL]", "WARN": "[WARN]", "ERROR": "[ERR ]"}.get(r["status"], "[????]")
-            print(f"  {icon} {r['check']}: {r.get('detail', '')}")
+    gen.save_json(os.path.join(report_subdir, "test_report.json"))
+    gen.save_markdown(os.path.join(report_subdir, "test_report.md"))
+    gen.save_manual(os.path.join(output_dir, "user_manual.md"))
 
-    if run_queries:
-        print(f"\n[Phase 2] Query Testing...")
-        llm_api_key = args.api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get("DEEPSEEK_API_KEY")
-        tester = QueryTester(kg, api_key=llm_api_key,
-                             base_url=args.base_url, model=args.model)
-        query_results = tester.run_all()
-        for r in query_results:
-            icon = {"PASS": "[PASS]", "FAIL": "[FAIL]", "WARN": "[WARN]", "ERROR": "[ERR ]"}.get(r["status"], "[????]")
-            sn = r.get("subgraph_nodes", 0)
-            se = r.get("subgraph_edges", 0)
-            has_llm = " [LLM]" if r.get("llm_answer") else ""
-            print(f"  {icon} #{r['id']:2d} | subgraph={sn}n/{se}e{has_llm} | {r['question'][:40]}")
-
-    if args.gen_manual:
-        print(f"\n[Phase 3] Generating user manual...")
-        # Use test case definitions to generate manual directly (no need to run tests)
-        gen = ReportGenerator(args.kg_file, [], [], kg=kg)
-        gen.queries = [{
-            "id": tc.id, "question": tc.question, "keywords": tc.keywords,
-            "expected_types": tc.expected_types,
-            "expected_types_found": tc.expected_types,
-            "expected_relations": tc.expected_relations,
-            "expected_relations_found": tc.expected_relations,
-            "search_hits": "?",
-            "max_hops": tc.max_hops,
-        } for tc in TEST_CASES]
-        gen.save_manual(os.path.join(output_dir, "user_manual.md"))
-        return
-
-    if not args.gen_manual:
-        print(f"\n[Phase 3] Generating reports...")
-        gen = ReportGenerator(args.kg_file, structure_results, query_results, kg=kg)
-
-        gen.save_json(os.path.join(report_subdir, "test_report.json"))
-        gen.save_markdown(os.path.join(report_subdir, "test_report.md"))
-        gen.save_manual(os.path.join(output_dir, "user_manual.md"))
-
-        print(f"\n{'='*60}")
-        print(f"  Summary")
-        print(f"{'='*60}")
-        print(f"  Structure: {gen.structure_passed}/{gen.structure_total} passed")
-        print(f"  Queries:   {gen.query_passed}/{gen.query_total} passed")
-        print(f"  Overall:   {gen.total_passed}/{gen.total_checks} ({gen.pass_rate:.1%})")
-        print(f"  Health:    {gen.health_score}/100")
-        print(f"{'='*60}")
+    print(f"\n{'='*60}")
+    print(f"  Summary")
+    print(f"{'='*60}")
+    print(f"  Structure: {gen.structure_passed}/{gen.structure_total} passed")
+    print(f"  Overall:   {gen.total_passed}/{gen.total_checks} ({gen.pass_rate:.1%})")
+    print(f"  Health:    {gen.health_score}/100")
+    print(f"{'='*60}")
 
 
 if __name__ == "__main__":

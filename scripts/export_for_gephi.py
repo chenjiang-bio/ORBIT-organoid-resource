@@ -18,7 +18,7 @@ Usage:
   python export_for_gephi.py kg.json --sample 500
 
   # Export only specified node types and their associated edges
-  python export_for_gephi.py kg.json --node-types Sample,Organoid,Organ,Drug
+  python export_for_gephi.py kg.json --node-types Sample,Organ,Drug
 
   # Export as CSV dual files
   python export_for_gephi.py kg.json --format csv --output-dir ./gephi_export
@@ -43,7 +43,6 @@ from query_tool import KnowledgeGraphQuery
 
 NODE_TYPE_COLORS = {
     "Sample":        (74, 144, 226),   # Blue — core entity
-    "Organoid":      (245, 166, 35),   # Orange — organoid
     "Organ":         (126, 211, 33),   # Green — organ
     "System":        (0, 128, 0),      # Dark green — physiological system
     "Organism":      (208, 2, 27),     # Red — species
@@ -64,7 +63,6 @@ NODE_TYPE_COLORS = {
 
 # Relationship type → edge color
 EDGE_TYPE_COLORS = {
-    "HAS_ORGANOID":        (74, 144, 226),
     "FROM_ORGAN":          (126, 211, 33),
     "BELONGS_TO_SYSTEM":   (0, 128, 0),
     "FROM_ORGANISM":       (208, 2, 27),
@@ -359,7 +357,7 @@ def main():
     parser.add_argument("--sample", "-s", type=int, default=0,
                         help="Randomly sample N Sample nodes and their neighbors (0=full export)")
     parser.add_argument("--node-types", "-t", default=None,
-                        help="Export only specified node types, comma-separated (e.g.: Sample,Organoid,Drug)")
+                        help="Export only specified node types, comma-separated (e.g.: Sample,Organ,Drug)")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed (default: 42)")
     args = parser.parse_args()
