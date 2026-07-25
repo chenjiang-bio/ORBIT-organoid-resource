@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#
+# Reject commit messages that credit an AI coding agent as co-author.
+#
+# AI editors (Cursor, Copilot, Claude Code, Codex, ...) append a
+# `Co-authored-by:` trailer to commits they help write. GitHub renders that
+# trailer as a second author, so the agent shows up in the repository's
+# Contributors list. Removing it afterwards means rewriting published history
+# and force-pushing, which breaks every existing clone. Cheaper to block here.
+#
+# Human co-authors are untouched: only known agent identities are rejected.
+#
+# Install:  git config core.hooksPath .githooks
+# Bypass:   git commit --no-verify   (use only if you really mean it)
+
+set -euo pipefail
+
+msg_file="$1"
+
+# Match the trailer only when it names a known agent. Case-insensitive, and
+# tolerant of extra spaces after the colon.
+agent_pattern='^[[:space:]]*co-authored-by:.*(cursoragent@cursor\.com|cursor[[:space:]]*agent|copilot@|noreply@github\.com>[[:space:]]*$|claude|anthropic|codex|devin|openai)'
+
+if matches=$(grep -inE "$agent_pattern" "$msg_file"); then
+    cat >&2 <<EOF
+✗ Commit rejected: the message credits an AI agent as co-author.
+
+$(printf '%s\n' "$matches" | sed 's/^/    /')
+
+GitHub turns this trailer into a second contributor on the repository page.
+Removing it later requires rewriting published history and force-pushing.
+
+Delete the line and commit again. Your own authorship is unaffected — the
+agent assisted, it is not a co-author of the repository.
+
+To override deliberately:  git commit --no-verify
+EOF
+    exit 1
+fi
+
+exit 0
