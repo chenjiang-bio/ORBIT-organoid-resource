@@ -12,6 +12,7 @@ The default branch is `main`.
 | [`literature-agent/`](literature-agent/) | Multi-agent system for structured extraction from organoid literature |
 | [`knowledge-graph/`](knowledge-graph/) | Knowledge-graph construction, schema, and query utilities |
 | [`literature-mcp/`](literature-mcp/) | MCP (Model Context Protocol) services used by the literature extraction agent |
+| [`signature-prioritization/`](signature-prioritization/) | OCSP: context-guided prioritization of candidate genes against condition-specific organoid pathway backgrounds |
 
 ## Getting started
 

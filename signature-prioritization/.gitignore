@@ -1,0 +1,101 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Secrets / credentials
+.pypirc
+.env
+*.pem
+
+# Project caches & logs
+.orgbioper_cache/
+.pytest_cache/
+*.log
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# Run outputs
+out_*/
+benchmark_results/
+evaluation_results_proxy/
+orgbioper_training/
+
+# Internal workspaces (do NOT upload to GitHub)
+background/
+prototype/
+orgbioper_tool_bundle/*.tar.gz
+orgbioper_tool_bundle/miniconda3/
+orgbioper_tool_bundle/results/
+orgbioper_tool_bundle/kofam_scan/
+orgbioper_tool_bundle/orgbioper_pre_scripts/
+
+# Stale vendored copy of the package (408 MB)
+handoff/developer_bundle/
+
+# Generated build artifacts of the release tree
+../orgbioper-release/
+dist_check/
+
+# Large data: distributed as a GitHub Release asset, fetched via
+# `orgbioper-download-data`. B_terms_hsa.json is 199 MB, above GitHub's
+# 100 MB per-file hard limit.
+data/data_b/B_terms_hsa.json
+data/data_b/B_terms_mmu.json
+data/data_b/all_merged_result.json
+data/DAG/go-basic.obo
+data/DAG/go_ancestors.json
+data/DAG/go_descendants.json
+data/meta/go_meta.json
+data/protein/all_merged_result.json
+data/protein/Gene_Annotation_*.txt
+data/semantic_resources_v2/go_ancestors.json
+data/all_sequence_variants.tsv
+
+# Generated UI index (8 MB)
+handoff/ocsp_min/ui/filter_index.json
+
+# Large test corpus (387 MB) — regenerate with scripts/convert_ana_meta_example.py
+tests/Ana_Meta_example/
+
+# Backup copies
+*_bak.py
+*_backup.json
+*.bak_*
+*~
+
+# Temporary files
+*.tmp
+*.temp
