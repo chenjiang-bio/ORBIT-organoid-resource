@@ -27,7 +27,23 @@ VALID_GROUPS = {"case", "control"}
 LARGE_N_THRESHOLD = 8  # use Wilcoxon when both groups have n > 8
 
 _PKG_ROOT = Path(__file__).resolve().parents[1]
-_DEFAULT_RSCRIPT = _PKG_ROOT / "R" / "run_de.R"
+
+
+def _resolve_default_rscript() -> Path:
+    """Locate ``run_de.R``, preferring the copy installed with the package.
+
+    Only files inside the package directory survive ``pip install``; a sibling
+    ``R/`` directory at the repository root does not. Checking the packaged copy
+    first means expression mode works for installed users, while a source
+    checkout still finds the repo-root copy.
+    """
+    packaged = Path(__file__).resolve().parent / "R" / "run_de.R"
+    if packaged.exists():
+        return packaged
+    return _PKG_ROOT / "R" / "run_de.R"
+
+
+_DEFAULT_RSCRIPT = _resolve_default_rscript()
 
 DeBackend = Callable[..., pd.DataFrame]
 
