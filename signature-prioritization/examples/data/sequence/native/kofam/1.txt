@@ -1,0 +1,79 @@
+# gene name           KO     thrshld  score   E-value KO definition
+#-------------------- ------ ------- ------ --------- ---------------------
+  NP_570602.2         K26168  316.13  176.3   2.9e-56 immunoglobulin superfamily member 1
+  NP_570602.2         K06512  381.60  124.4   2.4e-40 leukocyte immunoglobulin-like receptor
+  NP_570602.2         K26357  269.73  101.4   2.9e-33 T-cell-interacting, activating receptor on myeloid cells protein 1
+  NP_570602.2         K14377  234.07   94.8   2.5e-31 osteoclast-associated immunoglobulin-like receptor
+  NP_570602.2         K06727  201.07   54.0   5.7e-19 Fc receptor-like protein
+  NP_570602.2         K06264  346.27   54.0   6.5e-19 platelet glycoprotein VI
+  NP_570602.2         K07980  489.53   52.7   1.4e-18 killer cell immunoglobulin-like receptor 3DL
+  NP_570602.2         K06471  440.60   51.2   3.2e-18 platelet/endothelial cell adhesion molecule
+  NP_570602.2         K07982  561.13   48.4   2.9e-17 killer cell immunoglobulin-like receptor 2DS
+  NP_570602.2         K24232  291.33   44.2   9.7e-16 killer cell immunoglobulin-like receptor 2DL5
+  NP_570602.2         K06741  396.20   39.6   1.5e-14 natural cytotoxicity triggering receptor 1
+  NP_570602.2         K24231  755.40   38.8   2.6e-14 killer cell immunoglobulin-like receptor 2DL4
+  NP_570602.2         K06467  246.77   36.9   8.1e-14 CD22 antigen
+  NP_570602.2         K06527  244.70   35.9   1.1e-13 vascular cell adhesion molecule 1
+  NP_570602.2         K06513  291.73   34.5   5.7e-13 CD89 antigen
+  NP_570602.2         K06725  175.00   34.1   9.6e-13 leukocyte-associated Ig-like receptor
+  NP_570602.2         K06548  536.57   33.4   3.2e-13 sialoadhesin
+  NP_570602.2         K06498  312.50   32.6   2.2e-12 high affinity immunoglobulin gamma Fc receptor I
+  NP_570602.2         K06499  224.17   31.8   2.6e-12 carcinoembryonic antigen-related cell adhesion molecule
+  NP_570602.2         K07981  742.63   25.3   3.3e-10 killer cell immunoglobulin-like receptor 2DL1/2/3
+  NP_570602.2         K05127  583.67   24.6   2.8e-10 PTK7 protein tyrosine kinase 7 [EC:2.7.10.1]
+  NP_570602.2         K17341 1115.17   22.7   2.7e-10 hemicentin
+  NP_570602.2         K06255 1528.03   22.1   4.5e-10 basement membrane-specific heparan sulfate proteoglycan core protein
+  NP_570602.2         K06754 1343.50   20.6   4.5e-09 roundabout, axon guidance receptor 2
+  NP_570602.2         K05090 1160.50   17.3   5.2e-08 macrophage colony-stimulating factor 1 receptor [EC:2.7.10.1]
+  NP_570602.2         K06791  332.70   17.1   9.7e-08 immunoglobulin superfamily, member 11
+  NP_570602.2         K20245  476.60   17.0   6.3e-08 brother of ihog
+  NP_570602.2         K06773  534.53   15.5   2.8e-07 opioid binding protein/cell adhesion molecule-like
+  NP_570602.2         K05089 1320.17   15.5   1.7e-07 platelet-derived growth factor receptor beta [EC:2.7.10.1]
+  NP_570602.2         K06766 1653.63   15.0     2e-07 neogenin
+  NP_570602.2         K06565  243.17   14.7     4e-07 lymphocyte-activation gene 3 protein
+  NP_570602.2         K06767 2412.10   14.4   2.3e-07 Down syndrome cell adhesion molecule
+  NP_570602.2         K07369  223.20   13.6   7.7e-07 mucosa-associated lymphoid tissue lymphoma translocation protein 1 [EC:3.4.22.-]
+  NP_570602.2         K17531 2310.37   13.2     1e-07 obscurin-RhoGEF [EC:2.7.11.1]
+  NP_570602.2         K06772  502.33   13.2   1.6e-06 limbic system-associated membrane protein
+  NP_570602.2         K05095 1302.10   13.0   1.2e-06 fibroblast growth factor receptor 4 [EC:2.7.10.1]
+  NP_570602.2         K06522  716.90   12.1   1.4e-06 immunoglobulin superfamily, member 2/3
+  NP_570602.2         K24496  334.30   11.8   1.9e-06 nephrin
+  NP_570602.2         K22656 1030.27   11.7   2.4e-06 immunoglobulin superfamily member 9B
+  NP_570602.2         K06760 1472.40   11.7   2.2e-06 contactin 2
+  NP_570602.2         K05055  228.37   11.3   4.9e-06 interleukin 6 receptor
+  NP_570602.2         K04012  902.30   11.2   3.1e-06 complement receptor type 2
+  NP_570602.2         K05170  482.40   10.8   6.2e-06 interleukin 1 receptor accessory protein-like
+  NP_570602.2         K06788  324.30   10.6   1.3e-05 coxsackievirus and adenovirus receptor
+  NP_570602.2         K06491  344.27   10.4   6.2e-06 neural cell adhesion molecule
+  NP_570602.2         K16680  430.10   10.3   6.5e-06 echinoid
+  NP_570602.2         K06768 2528.10    9.7   6.2e-06 Down syndrome cell adhesion molecule-like protein 1
+  NP_570602.2         K05096 1296.17    9.7     1e-05 FMS-like tyrosine kinase 1 [EC:2.7.10.1]
+  NP_570602.2         K12560  440.13    9.5   2.3e-05 low affinity immunoglobulin gamma Fc receptor II-b
+  NP_570602.2         K06578  632.30    8.8   1.7e-05 basal cell adhesion molecule
+  NP_570602.2         K06089  307.20    8.3   5.9e-05 junctional adhesion molecule 1
+  NP_570602.2         K06769  528.90    8.2   2.3e-05 intercellular adhesion molecule 5
+  NP_570602.2         K06490  747.23    8.1   3.3e-05 intercellular adhesion molecule 1
+  NP_570602.2         K06790  262.07    7.8   9.1e-05 cell surface A33 antigen
+  NP_570602.2         K06463  395.23    7.8   6.8e-05 low affinity immunoglobulin gamma Fc receptor III
+  NP_570602.2         K06454  216.30    7.7   6.5e-05 T-cell surface glycoprotein CD4
+  NP_570602.2         K17270  211.00    7.7    0.0001 myelin-oligodendrocyte glycoprotein
+  NP_570602.2         K06782  532.37    7.5   7.7e-05 cell adhesion molecule 2
+  NP_570602.2         K17273  268.17    7.3   7.8e-05 Fc receptor-like protein 6
+  NP_570602.2         K06750 1081.40    7.1   8.9e-05 sialic acid binding Ig-like lectin 11
+  NP_570602.2         K08089  284.80    6.9   0.00016 high affinity immunoglobulin epsilon receptor subunit alpha
+  NP_570602.2         K06775  490.80    6.8   0.00017 neuronal growth regulator 1
+  NP_570602.2         K19574 1619.93    6.8   2.7e-05 obscurin-like protein 1
+  NP_570602.2         K07523  413.43    6.6   8.7e-05 netrin-G1 ligand
+  NP_570602.2         K06746  200.27    6.3   0.00025 immune costimulatory protein B7-H3
+  NP_570602.2         K20033  692.17    6.2   9.8e-05 cell adhesion molecule-related/down-regulated by oncogenes
+  NP_570602.2         K05174  406.97    5.9   0.00017 interleukin 18 receptor accessory protein
+  NP_570602.2         K06749  547.23    5.6   0.00015 sialic acid binding Ig-like lectin 10
+  NP_570602.2         K06748  679.73    5.6   0.00027 sialic acid binding Ig-like lectin 8
+  NP_570602.2         K25874  328.70    5.4   0.00025 Kirrel/Neph family protein
+  NP_570602.2         K06747  206.73    5.1   0.00055 immune costimulatory protein B7-H4
+  NP_570602.2         K19822  118.63    4.4   0.00077 V-set and immunoglobulin domain-containing protein 4
+  NP_570602.2         K06756 1403.83    4.2   0.00036 neuronal cell adhesion molecule
+  NP_570602.2         K16826  282.20    4.1   0.00099 signal-regulatory protein beta 2
+  NP_570602.2         K05413  191.20    3.9     0.001 CD86 antigen
+  NP_570602.2         K06549  601.60    3.7   0.00083 sialic acid binding Ig-like lectin 5
+  NP_570602.2         K16361  207.60    3.1    0.0016 cytotoxic and regulatory T-cell molecule

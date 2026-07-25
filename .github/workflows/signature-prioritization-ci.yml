@@ -1,0 +1,37 @@
+# Install at: <repo-root>/.github/workflows/signature-prioritization-ci.yml
+#
+# This workflow lives at the repository root because GitHub Actions ignores
+# `.github/` directories inside subdirectories. Every path below is relative to
+# the repository root.
+name: signature-prioritization CI
+
+on:
+  push:
+    branches: [main]
+    paths: ["signature-prioritization/**"]
+  pull_request:
+    paths: ["signature-prioritization/**"]
+
+defaults:
+  run:
+    working-directory: signature-prioritization
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      # No scoring data on CI: parsing, merging and argument validation must
+      # pass, and anything needing the data bundle must skip itself.
+      - name: Test
+        run: pytest -q

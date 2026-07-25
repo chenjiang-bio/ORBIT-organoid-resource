@@ -1,0 +1,357 @@
+"""Canonical accessors for current B_terms JSON schema.
+
+Current ``data/data_b/B_terms_*.json`` records use paired ``*_condition`` /
+``*_control`` fields. Both arms are first-class filter parameters.
+
+``organ_candidates_*`` are deprecated and must never be used for filtering.
+``pathway`` is an object ``{enrich, gsea, gsva}`` (legacy list still accepted).
+``category`` may be a list.
+"""
+
+from __future__ import annotations
+
+from collections import Counter, defaultdict
+from typing import Any, Iterable, Optional, Sequence
+
+
+# Explicit schema keys (+ legacy flat-name fallbacks where noted).
+_FIELD_KEYS: dict[str, tuple[str, ...]] = {
+    "organ_condition": ("organ_condition", "organ"),
+    "organ_control": ("organ_control",),
+    "organ_system_condition": ("organ_system_condition",),
+    "organ_system_control": ("organ_system_control",),
+    "model_condition": ("model_condition", "model"),
+    "model_control": ("model_control",),
+    "source_condition": ("source_condition", "source"),
+    "source_control": ("source_control",),
+    "time_condition": ("time_condition", "day", "time"),
+    "time_control": ("time_control",),
+    # Short aliases used for grouping keys / reports (experimental arm).
+    "organ": ("organ_condition", "organ"),
+    "model": ("model_condition", "model"),
+    "source": ("source_condition", "source"),
+    "time": ("time_condition", "day", "time"),
+    "day": ("time_condition", "day"),
+}
+
+# Fields stored as JSON arrays in B_terms (membership match).
+_LIST_FIELDS = frozenset(
+    {
+        "category",
+        "organ_system_condition",
+        "organ_system_control",
+    }
+)
+
+DEPRECATED_FIELDS = frozenset(
+    {
+        "organ_candidates_control",
+        "organ_candidates_condition",
+    }
+)
+
+DEFAULT_PATHWAY_SOURCES: tuple[str, ...] = ("enrich",)
+
+
+def _norm_eq(a: Optional[str], b: Optional[str]) -> bool:
+    if a is None or b is None:
+        return False
+    return a.strip().lower() == b.strip().lower()
+
+
+def b_get(obj: dict, logical: str) -> str:
+    """Return a string metadata field using current B schema (+ legacy fallback)."""
+    keys = _FIELD_KEYS.get(logical)
+    if keys is None:
+        val = obj.get(logical, "")
+        if isinstance(val, (list, tuple)):
+            return ", ".join(str(x) for x in val if x is not None and str(x).strip())
+        return str(val or "")
+    for key in keys:
+        if key in DEPRECATED_FIELDS:
+            continue
+        if key not in obj:
+            continue
+        val = obj.get(key)
+        if val is None:
+            continue
+        text = str(val).strip()
+        if text:
+            return text
+    return ""
+
+
+def b_categories(obj: dict) -> list[str]:
+    """Normalize category to a list of non-empty strings."""
+    return b_list_values(obj, "category")
+
+
+def b_list_values(obj: dict, key: str) -> list[str]:
+    """Normalize a B list/string field to non-empty strings."""
+    raw = obj.get(key)
+    if raw is None:
+        return []
+    if isinstance(raw, (list, tuple, set)):
+        return [str(x).strip() for x in raw if str(x).strip()]
+    text = str(raw).strip()
+    return [text] if text else []
+
+
+def b_list_match(obj: dict, key: str, want: str) -> bool:
+    """True if filter empty or any list entry matches (case-insensitive)."""
+    text = (want or "").strip()
+    if not text:
+        return True
+    return any(_norm_eq(x, text) for x in b_list_values(obj, key))
+
+
+def b_category_match(obj: dict, category_filter: str) -> bool:
+    """True if filter is empty or matches any category entry (case-insensitive)."""
+    return b_list_match(obj, "category", category_filter)
+
+def b_pathway_terms(
+    obj: dict,
+    sources: Sequence[str] = DEFAULT_PATHWAY_SOURCES,
+) -> list[str]:
+    """Extract pathway term IDs from a B record.
+
+    Prefer ``pathway.enrich`` (default). Legacy list/string ``pathway`` is supported.
+    Does not flatten dicts via ``str()``.
+    """
+    raw = obj.get("pathway")
+    if raw is None:
+        raw = obj.get("pathways")
+    if raw is None:
+        return []
+
+    if isinstance(raw, dict):
+        out: list[str] = []
+        seen: set[str] = set()
+        for src in sources:
+            chunk = raw.get(src)
+            if chunk is None:
+                continue
+            for term in _as_term_list(chunk):
+                if term not in seen:
+                    seen.add(term)
+                    out.append(term)
+        return out
+
+    return _as_term_list(raw)
+
+
+def _as_term_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return [str(x).strip() for x in value if str(x).strip()]
+    if isinstance(value, dict):
+        return []
+    text = str(value).strip()
+    if not text:
+        return []
+    if (text.startswith("{") and text.endswith("}")) or (
+        text.startswith("[") and text.endswith("]")
+    ):
+        text = text[1:-1]
+    parts = [p.strip() for p in text.split(",") if p.strip()]
+    return parts if parts else [text]
+
+
+def b_record_matches(
+    obj: dict,
+    *,
+    condition: str = "",
+    additional_condition: str = "",
+    organ: str = "",
+    organ_condition: str = "",
+    organ_control: str = "",
+    organ_system_condition: str = "",
+    organ_system_control: str = "",
+    model: str = "",
+    model_condition: str = "",
+    model_control: str = "",
+    category: str = "",
+    comparison_control: str = "",
+    comparison_condition: str = "",
+    cell_type: str = "",
+    day: str = "",
+    time: str = "",
+    time_condition: str = "",
+    time_control: str = "",
+    factor: str = "",
+    source: str = "",
+    source_condition: str = "",
+    source_control: str = "",
+    allow_additional_all: bool = False,
+) -> bool:
+    """Case-insensitive exact match on non-empty filters against current B fields.
+
+    Paired arms are independent. ``organ_system_*`` are list fields (membership).
+    Legacy ``organ`` / ``source`` / ``day`` / ``model`` / ``time`` map to the
+    ``*_condition`` arm when the explicit ``*_condition`` filter is empty.
+    """
+    if condition and not _norm_eq(str(obj.get("condition", "") or ""), condition):
+        return False
+
+    if additional_condition:
+        if not (allow_additional_all and additional_condition.strip().lower() == "all"):
+            if not _norm_eq(
+                str(obj.get("additional_condition", "") or ""), additional_condition
+            ):
+                return False
+
+    want_organ_cond = (organ_condition or organ or "").strip()
+    want_organ_ctrl = (organ_control or "").strip()
+    if want_organ_cond and not _norm_eq(b_get(obj, "organ_condition"), want_organ_cond):
+        return False
+    if want_organ_ctrl and not _norm_eq(b_get(obj, "organ_control"), want_organ_ctrl):
+        return False
+    if not b_list_match(obj, "organ_system_condition", organ_system_condition):
+        return False
+    if not b_list_match(obj, "organ_system_control", organ_system_control):
+        return False
+
+    want_model_cond = (model_condition or model or "").strip()
+    want_model_ctrl = (model_control or "").strip()
+    if want_model_cond and not _norm_eq(b_get(obj, "model_condition"), want_model_cond):
+        return False
+    if want_model_ctrl and not _norm_eq(b_get(obj, "model_control"), want_model_ctrl):
+        return False
+
+    if not b_category_match(obj, category):
+        return False
+    if comparison_control and not _norm_eq(
+        str(obj.get("comparison_control", "") or ""), comparison_control
+    ):
+        return False
+    if comparison_condition and not _norm_eq(
+        str(obj.get("comparison_condition", "") or ""), comparison_condition
+    ):
+        return False
+    if cell_type and not _norm_eq(str(obj.get("cell_type", "") or ""), cell_type):
+        return False
+
+    want_time_cond = (time_condition or time or day or "").strip()
+    want_time_ctrl = (time_control or "").strip()
+    if want_time_cond and not _norm_eq(b_get(obj, "time_condition"), want_time_cond):
+        return False
+    if want_time_ctrl and not _norm_eq(b_get(obj, "time_control"), want_time_ctrl):
+        return False
+
+    if factor and not _norm_eq(str(obj.get("factor", "") or ""), factor):
+        return False
+
+    want_source_cond = (source_condition or source or "").strip()
+    want_source_ctrl = (source_control or "").strip()
+    if want_source_cond and not _norm_eq(
+        b_get(obj, "source_condition"), want_source_cond
+    ):
+        return False
+    if want_source_ctrl and not _norm_eq(b_get(obj, "source_control"), want_source_ctrl):
+        return False
+    return True
+
+
+def load_condition_pathways(
+    records: Iterable[dict],
+    condition: str,
+    *,
+    category: Optional[str] = None,
+    model: Optional[str] = None,
+    model_condition: Optional[str] = None,
+    model_control: Optional[str] = None,
+    organ: Optional[str] = None,
+    organ_condition: Optional[str] = None,
+    organ_control: Optional[str] = None,
+    organ_system_condition: Optional[str] = None,
+    organ_system_control: Optional[str] = None,
+    factor: Optional[str] = None,
+    source: Optional[str] = None,
+    source_condition: Optional[str] = None,
+    source_control: Optional[str] = None,
+    cell_type: Optional[str] = None,
+    time: Optional[str] = None,
+    time_condition: Optional[str] = None,
+    time_control: Optional[str] = None,
+    additional_condition: Optional[str] = None,
+    comparison_control: Optional[str] = None,
+    comparison_condition: Optional[str] = None,
+    pathway_sources: Sequence[str] = DEFAULT_PATHWAY_SOURCES,
+    pathway_mode: str = "union",
+    min_record_freq: int = 1,
+    min_dataset_freq: int = 1,
+) -> list[str]:
+    """Filter B records and return pathway IDs.
+
+    ``pathway_mode``:
+      - ``union``: any matching record (after min_* cuts on counts)
+      - ``majority``: keep terms present in >= ceil(n_datasets/2) datasets,
+        also respecting ``min_dataset_freq`` / ``min_record_freq`` floors
+    """
+    matched: list[dict] = []
+    for obj in records:
+        if not isinstance(obj, dict):
+            continue
+        if not b_record_matches(
+            obj,
+            condition=condition or "",
+            additional_condition=additional_condition or "",
+            organ=organ or "",
+            organ_condition=organ_condition or "",
+            organ_control=organ_control or "",
+            organ_system_condition=organ_system_condition or "",
+            organ_system_control=organ_system_control or "",
+            model=model or "",
+            model_condition=model_condition or "",
+            model_control=model_control or "",
+            category=category or "",
+            comparison_control=comparison_control or "",
+            comparison_condition=comparison_condition or "",
+            cell_type=cell_type or "",
+            time=time or "",
+            time_condition=time_condition or "",
+            time_control=time_control or "",
+            factor=factor or "",
+            source=source or "",
+            source_condition=source_condition or "",
+            source_control=source_control or "",
+            allow_additional_all=True,
+        ):
+            continue
+        matched.append(obj)
+
+    if not matched:
+        return []
+
+    record_counts: Counter[str] = Counter()
+    dataset_sets: dict[str, set[str]] = defaultdict(set)
+    for obj in matched:
+        terms = b_pathway_terms(obj, sources=pathway_sources)
+        gse = str(obj.get("GSE_ID") or "").strip() or f"row:{id(obj)}"
+        for term in set(terms):
+            record_counts[term] += 1
+            dataset_sets[term].add(gse)
+
+    dataset_counts = {t: len(ds) for t, ds in dataset_sets.items()}
+    n_datasets = len(
+        {
+            str(obj.get("GSE_ID") or "").strip() or f"row:{id(obj)}"
+            for obj in matched
+        }
+    )
+
+    mode = (pathway_mode or "union").strip().lower()
+    if mode == "majority":
+        majority_cut = max(1, (n_datasets + 1) // 2)
+        floor_ds = max(int(min_dataset_freq or 1), majority_cut)
+    else:
+        floor_ds = max(1, int(min_dataset_freq or 1))
+    floor_rec = max(1, int(min_record_freq or 1))
+
+    kept = [
+        term
+        for term, n_rec in record_counts.items()
+        if n_rec >= floor_rec and dataset_counts.get(term, 0) >= floor_ds
+    ]
+    return sorted(kept)
