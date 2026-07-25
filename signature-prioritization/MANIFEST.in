@@ -1,0 +1,27 @@
+include README.md
+include CHANGELOG.md
+include CONTRIBUTING.md
+include LICENSE
+recursive-include orbit_ocsp *.py
+recursive-include docs *.md
+graft R
+
+# Small data resources only. The scoring data is a GitHub Release asset fetched
+# with orbit-ocsp-download-data: B_terms_hsa.json alone is 199 MB.
+include data/README.md
+recursive-include data/ko2pathway *.txt
+recursive-include data/data_u *.json
+recursive-include data/meta kegg_meta_*.json
+recursive-include data/IC *.json
+recursive-include data/annotations *.tsv
+recursive-include data/KEGG_count_topology *_topology.json
+include data/semantic_resources_v2/go_ic.json
+include data/semantic_resources_v2/go_namespace.json
+include data/semantic_resources_v2/manifest.json
+include data/DAG/go_namespace.json
+
+graft examples/data
+include examples/README.md
+include examples/orbit_ocsp_tutorial.ipynb
+
+global-exclude *.pyc __pycache__ .DS_Store *.log

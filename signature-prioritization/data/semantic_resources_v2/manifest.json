@@ -1,0 +1,24 @@
+{
+  "format_version": 2,
+  "edge_direction": "child_to_parent",
+  "closure": "transitive_ancestors_including_self",
+  "relations": [
+    "is_a",
+    "part_of"
+  ],
+  "ic_definition": "-log((propagated_unique_gene_frequency + 1) / (N + 1))",
+  "genes_with_go_annotations": 1308,
+  "source_files": {
+    "obo": "data/DAG/go-basic.obo",
+    "gene_annotations": "data/protein/all_merged_result.json"
+  },
+  "source_sha256": {
+    "obo": "d9a5670865816dd63dcdd49f76864d3a621990d8bcbb6b758e4cdfbfdb9f2982",
+    "gene_annotations": "46c73447372baa4c01b48234ed3c4b3c19c9f8c60f3221957814321c0add9be6"
+  },
+  "validation": {
+    "terms": 39906,
+    "ancestor_relations_including_self": 523777,
+    "monotonicity_violations": 0
+  }
+}
