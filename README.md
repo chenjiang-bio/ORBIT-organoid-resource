@@ -26,6 +26,19 @@ The default branch is `main`.
 
 ## Collaboration notes
 
+- **Enable the shared git hooks once per clone:**
+
+  ```bash
+  git config core.hooksPath .githooks
+  ```
+
+  Git does not share hooks through a clone, so this is opt-in. The hook rejects
+  commit messages that credit an AI coding agent (Cursor, Copilot, Claude, ...)
+  as `Co-authored-by:`. GitHub renders that trailer as a second contributor on
+  the repository page, and removing it afterwards requires rewriting published
+  history and force-pushing, which breaks every existing clone. Human
+  co-authors are unaffected. CI enforces the same rule as a backstop.
+
 - Keep module code, configs, and docs **inside the corresponding subdirectory**.
 - Prefer English for all public documentation, comments intended for external readers, and commit messages in this repository.
 - Do not commit secrets (API keys, credentials, `.env` files with private tokens).

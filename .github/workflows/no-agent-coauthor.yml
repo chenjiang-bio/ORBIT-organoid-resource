@@ -1,0 +1,57 @@
+# Backstop for the .githooks/commit-msg hook.
+#
+# Git hooks are not shared by a clone: every collaborator has to opt in with
+# `git config core.hooksPath .githooks`. Anyone who has not run that can still
+# push a commit crediting an AI agent as co-author. This check runs on the
+# server, so it catches those before they reach a protected branch.
+name: No agent co-author trailers
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need history to inspect the commits the PR adds.
+          fetch-depth: 0
+
+      - name: Scan new commit messages
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ -n "$BASE" ]; then
+            range="$BASE..$HEAD_SHA"
+          else
+            # Push event: inspect just the pushed commit.
+            range="${{ github.sha }}~1..${{ github.sha }}"
+          fi
+          echo "Inspecting $range"
+
+          bad=0
+          while read -r sha; do
+            [ -z "$sha" ] && continue
+            msg=$(git log -1 --format=%B "$sha")
+            if printf '%s' "$msg" | grep -inE \
+              '^[[:space:]]*co-authored-by:.*(cursoragent@cursor\.com|cursor[[:space:]]*agent|copilot@|claude|anthropic|codex|devin|openai)'; then
+              echo "::error::Commit $sha credits an AI agent as co-author."
+              bad=1
+            fi
+          done < <(git rev-list "$range" 2>/dev/null || true)
+
+          if [ "$bad" -ne 0 ]; then
+            echo ""
+            echo "GitHub renders a Co-authored-by trailer as a second contributor."
+            echo "Removing it later means rewriting published history."
+            echo ""
+            echo "Fix: drop the trailer (git rebase -i, reword), then force-push"
+            echo "the branch. Enable the local hook to prevent a repeat:"
+            echo "  git config core.hooksPath .githooks"
+            exit 1
+          fi
+          echo "OK: no agent co-author trailers."
