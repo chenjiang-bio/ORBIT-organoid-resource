@@ -23,6 +23,16 @@ release build now resolves this automatically:
   tarball names) still read 0.3.4 while the released package declared 0.1.0, so
   `download-data` requested a release tag that does not exist. The build now
   forces them to match and fails if they diverge.
+- **Fixed**: `download-data` wrote to the wrong directory. `data_root()` gives
+  `ORBIT_OCSP_DATA` top priority, but the download default ignored it and used
+  the home directory, so the download reported success — or `already_present`
+  from a stale home copy — for a directory the tool never reads, and the
+  validation step immediately after failed with "17 files missing".
+- **Fixed**: the user data directory was `~/.orbit-ocsp/data` while every
+  docstring and `--help` string said `~/.orbit_ocsp/data`. The release rename
+  maps a bare package name onto the hyphenated CLI name, which is right for
+  commands and wrong for a dot-directory. A build guard now rejects the
+  hyphenated form.
 - **Fixed**: `R/run_de.R` was not installed by pip, so expression mode failed
   for anyone who installed the package rather than running from a checkout —
   `_DEFAULT_RSCRIPT` resolved to a path that does not exist in site-packages.

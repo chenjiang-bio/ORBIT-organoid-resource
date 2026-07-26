@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from orbit_ocsp.data_manager import (
     missing_paths,
     pack_local_data,
@@ -65,3 +67,56 @@ def test_ko2pathway_is_required_for_sequence_mode():
     paths = required_paths("hsa")
     assert "ko2pathway/ko2hsa.txt" in paths
     assert "ko2pathway/ko2mmu.txt" in paths
+
+
+def test_download_destination_honours_the_env_override(tmp_path, monkeypatch):
+    """``download_data`` must write where the rest of the package reads.
+
+    ``data_root()`` gives ``ORBIT_OCSP_DATA`` top priority, but the download
+    default ignored it and used the home directory. The download then reported
+    success — or ``already_present`` from a stale home copy — for a directory the
+    tool never consults, and the very next validation step failed.
+    """
+    from orbit_ocsp import data_manager as dm
+
+    target = tmp_path / "custom_data"
+    monkeypatch.setenv("ORBIT_OCSP_DATA", str(target))
+
+    captured: dict = {}
+
+    def fake_download(url, path):
+        captured["dest_parent"] = path
+        raise RuntimeError("stop before network access")
+
+    monkeypatch.setattr(dm, "_download_file", fake_download)
+
+    with pytest.raises(RuntimeError, match="stop before network"):
+        dm.download_data("hsa")
+
+    # The download resolved the env directory, not ~/.orbit_ocsp.
+    assert dm._env_data_dir() == target.resolve()
+    assert dm.data_root() == target.resolve()
+
+
+def test_download_destination_falls_back_to_home_without_env(tmp_path, monkeypatch):
+    from orbit_ocsp import data_manager as dm
+
+    monkeypatch.delenv("ORBIT_OCSP_DATA", raising=False)
+
+    assert dm._env_data_dir() is None
+    # Falls back to the user directory, which is what --help documents.
+    assert dm._user_data_dir().name == "data"
+    assert dm._user_data_dir().parent.name.startswith(".")
+
+
+def test_user_data_dir_uses_an_underscore_dot_directory():
+    """The dot-directory name must match every docstring and --help string.
+
+    The release rename maps a bare package name onto the hyphenated CLI name,
+    which is correct for commands and wrong here: it produced a tool that
+    downloaded into ``~/.orbit-ocsp`` while all its messages said
+    ``~/.orbit_ocsp``, so users could not find the data they had just fetched.
+    """
+    from orbit_ocsp import data_manager as dm
+
+    assert "-" not in dm._user_data_dir().parent.name

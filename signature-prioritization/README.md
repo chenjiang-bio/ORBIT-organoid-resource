@@ -28,9 +28,48 @@ pip install orbit-ocsp
 orbit-ocsp-download-data --species hsa   # pathway background, ~350 MB
 ```
 
-Then fetch the pathway background once — it is not in the wheel, because one of
-its files is 199 MB. Point at an existing copy instead with
-`export ORBIT_OCSP_DATA=/path/to/data`.
+The pathway background is fetched once, separately, because one of its files is
+199 MB and cannot ship in a wheel. Bundles: `hsa` 47 MB, `mmu` 35 MB, `full`
+73 MB.
+
+<details>
+<summary>If the download is slow or blocked</summary>
+
+The bundles are GitHub Release assets, which are slow or unreachable on some
+networks. Three ways around it:
+
+**Download by hand**, then point OCSP at the folder:
+
+```bash
+# Any downloader, or a browser, or a colleague's copy:
+curl -LO https://github.com/chenjiang-bio/ORBIT-organoid-resource/releases/download/ocsp-data-v0.1.0/orbit-ocsp-data-hsa-0.1.0.tar.gz
+
+mkdir -p ~/ocsp-data && tar xzf orbit-ocsp-data-hsa-0.1.0.tar.gz -C ~/ocsp-data
+export ORBIT_OCSP_DATA=~/ocsp-data/data
+```
+
+Put the `export` line in your shell profile to make it permanent. Every command
+reads this variable first, so nothing else needs configuring.
+
+**Use a mirror** you control:
+
+```bash
+orbit-ocsp-download-data --species hsa --base-url https://your-mirror/path
+```
+
+The URL must be the directory holding the tarballs, whose names must be
+unchanged. `ORBIT_OCSP_DATA_BASE_URL` sets the same thing for every run.
+
+**Check what is already present** without downloading:
+
+```bash
+orbit-ocsp-download-data --check
+```
+
+`orbit-ocsp-download-data` also honours `ORBIT_OCSP_DATA`: when that variable is
+set, the bundle is extracted there rather than into `~/.orbit_ocsp/data`.
+
+</details>
 
 <details>
 <summary>Other ways to install</summary>
