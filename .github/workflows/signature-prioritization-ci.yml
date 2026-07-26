@@ -35,3 +35,101 @@ jobs:
       # pass, and anything needing the data bundle must skip itself.
       - name: Test
         run: pytest -q
+
+  # Running the test suite from a source checkout cannot catch packaging
+  # defects, because every path that is wrong after `pip install` is still
+  # valid in the checkout. Three shipped bugs got through that way: run_de.R
+  # was not installed, the data directory name disagreed with --help, and
+  # download-data wrote where nothing reads. This job installs the built
+  # artifact into a clean environment and exercises it like a user would.
+  install-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build the distributions
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - name: Install the wheel into a clean venv
+        run: |
+          python -m venv /tmp/venv
+          /tmp/venv/bin/pip install dist/*.whl
+
+      - name: Console scripts are installed
+        run: |
+          for cmd in orbit-ocsp orbit-ocsp-download-data orbit-ocsp-list-fields; do
+            test -x "/tmp/venv/bin/$cmd" || { echo "::error::missing $cmd"; exit 1; }
+          done
+          /tmp/venv/bin/orbit-ocsp --help > /dev/null
+
+      # Non-Python runtime assets must survive the install. Resolved from
+      # outside the source tree, so a checkout-relative path cannot pass.
+      - name: run_de.R is packaged
+        run: |
+          cd /tmp
+          /tmp/venv/bin/python -c "
+          from orbit_ocsp.expression_de import _DEFAULT_RSCRIPT as p
+          assert p.exists(), f'run_de.R missing after install: {p}'
+          print('run_de.R:', p)
+          "
+
+      - name: Data directory matches what --help documents
+        run: |
+          cd /tmp
+          /tmp/venv/bin/python -c "
+          from orbit_ocsp.data_manager import _user_data_dir
+          d = _user_data_dir()
+          assert '-' not in d.parent.name, f'hyphenated data dir: {d}'
+          print('data dir:', d)
+          "
+
+      # Build a bundle from the repository's own small data files, so the smoke
+      # test never depends on the GitHub Release being reachable.
+      - name: download-data extracts where the package reads
+        run: |
+          cd /tmp
+          /tmp/venv/bin/python - <<'PY'
+          import subprocess, sys, tarfile, os
+          from pathlib import Path
+          src = Path(os.environ["GITHUB_WORKSPACE"]) / "signature-prioritization" / "data"
+          mirror = Path("/tmp/mirror"); mirror.mkdir(exist_ok=True)
+          # Name it exactly as the downloader expects.
+          from orbit_ocsp.data_manager import BUNDLE_ARCHIVE
+          with tarfile.open(mirror / BUNDLE_ARCHIVE["hsa"], "w:gz") as tar:
+              tar.add(src, arcname="data")
+          srv = subprocess.Popen(
+              [sys.executable, "-m", "http.server", "8899", "--directory", str(mirror)],
+              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+          try:
+              import time; time.sleep(2)
+              dest = Path("/tmp/ocsp_data")
+              env = {**os.environ, "ORBIT_OCSP_DATA": str(dest)}
+              r = subprocess.run(
+                  ["/tmp/venv/bin/orbit-ocsp-download-data", "--species", "hsa",
+                   "--base-url", "http://localhost:8899"],
+                  env=env, capture_output=True, text=True)
+              print(r.stdout, r.stderr)
+              # This mirror bundle is deliberately partial: the real scoring
+              # files are too large to keep in git, so a non-zero exit and a
+              # "still missing" warning are expected here. What this step
+              # verifies is the destination, which is where the bug was: the
+              # archive must land in ORBIT_OCSP_DATA, not the home directory.
+              assert dest.exists(), "download ignored ORBIT_OCSP_DATA"
+              assert any(dest.iterdir()), f"nothing extracted into {dest}"
+              home_dir = Path.home() / ".orbit_ocsp" / "data"
+              assert not home_dir.exists(), (
+                  f"download wrote to {home_dir} despite ORBIT_OCSP_DATA")
+              print("extracted into:", dest)
+          finally:
+              srv.terminate()
+          PY
+
+      - name: Distributions pass metadata checks
+        run: |
+          pip install twine
+          twine check dist/*
