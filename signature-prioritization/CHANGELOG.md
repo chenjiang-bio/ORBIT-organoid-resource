@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1]
+
+### Changed
+- **Data bundle version is now tracked separately from the package version**
+  (`DATA_VERSION` in `data_manager`, `orbit_ocsp/data_manager.py`). Previously
+  the bundle URL and tarball names were derived from `__version__`, so any
+  code-only release either required re-uploading ~155 MB of identical data or
+  silently pointed `download-data` at a release tag nobody had created. Package
+  0.1.1 keeps using the published `ocsp-data-v0.1.0` bundles.
+- The release build stamps both versions and checks that the download URL tag
+  and the tarball names agree on the data version. It no longer requires the two
+  versions to be equal, which is the point of the split.
+
+### Fixed
+- Expression mode raised a bare `FileNotFoundError: ... 'Rscript'` when R was
+  absent, naming neither the missing dependency nor a way forward. A preflight
+  check now reports what is missing and the three options (conda environment,
+  install R directly, or `--de-results` to skip R), and notes that gene-list and
+  sequence modes are unaffected.
+
+### Documentation
+- The install section now leads with clone + conda rather than pip, because pip
+  cannot install R and expression mode needs it. pip-only is documented as a
+  valid path for gene-list and sequence modes.
+- Corrected an instruction that could not work: `conda env create -f
+  environment.yml` was shown as runnable after `pip install`, but
+  `environment.yml` is not in the wheel and cannot be, since conda runs before
+  the package exists. It is now fetched by URL or taken from the clone.
+- Added a per-mode requirements table, and a section on working around slow or
+  blocked bundle downloads (manual download, `--base-url` mirror, `--check`).
+
+## [0.1.1]
+
+### Changed
+- Scoring-data version is now tracked separately from the package version via
+  `DATA_VERSION`. The bundles are tens of megabytes and change far less often
+  than the code; with a single shared version, every code-only release either
+  required re-uploading identical data or pointed `download-data` at a release
+  tag nobody created. 0.1.1 keeps using the existing `ocsp-data-v0.1.0`
+  bundles.
+
+### Fixed
+- Expression mode raised a bare `FileNotFoundError: ... 'Rscript'` from
+  subprocess when R was absent, naming neither the missing dependency nor a way
+  forward. It now reports what is missing and the three options (conda
+  environment, install R yourself, or `--de-results` to skip R), and notes that
+  gene-list and sequence modes are unaffected.
+- README recommended `conda env create -f environment.yml` after
+  `pip install`, but that file is not in the wheel and cannot be — conda must
+  run before the package exists. It is now fetched by URL, or taken from a
+  clone.
+
+### Documentation
+- The install section leads with clone + conda rather than pip, because pip
+  cannot supply the R stack that expression mode needs. pip-only is documented
+  as valid for gene-list and sequence modes, with a per-mode requirements table.
+
 ## [Unreleased]
 
 ### Deployment
@@ -23,6 +80,11 @@ release build now resolves this automatically:
   tarball names) still read 0.3.4 while the released package declared 0.1.0, so
   `download-data` requested a release tag that does not exist. The build now
   forces them to match and fails if they diverge.
+- Data bundle version decoupled from the package version. `DATA_VERSION` in
+  `data_manager` now drives the bundle filenames and the release tag, so a
+  code-only release keeps using the published `ocsp-data-v0.1.0` assets instead
+  of pointing at a data release tag nobody created. Bump it only when the data
+  itself changes.
 - **Fixed**: `download-data` wrote to the wrong directory. `data_root()` gives
   `ORBIT_OCSP_DATA` top priority, but the download default ignored it and used
   the home directory, so the download reported success — or `already_present`
