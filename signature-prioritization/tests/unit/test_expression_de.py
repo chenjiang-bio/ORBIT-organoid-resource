@@ -147,3 +147,53 @@ def test_one_vs_one_microarray_rejected(tmp_path):
             outdir=tmp_path / "out",
             backend="r",
         )
+
+
+def test_missing_r_raises_an_actionable_error(tmp_path, monkeypatch):
+    """A pip-only install has no R, and pip cannot provide it.
+
+    Without this check the user gets a bare
+    ``FileNotFoundError: [Errno 2] ... 'Rscript'`` from subprocess, which does
+    not say what is missing or how to proceed.
+    """
+    import pandas as pd
+    import pytest
+
+    from orbit_ocsp import expression_de as ed
+
+    monkeypatch.setattr(ed.shutil, "which", lambda name: None)
+
+    matrix = pd.DataFrame({"s1": [1, 2], "s2": [3, 4]}, index=["g1", "g2"])
+    groups = pd.DataFrame(
+        {"sample_id": ["s1", "s2"], "group": ["case", "control"]}
+    )
+
+    with pytest.raises(RuntimeError) as excinfo:
+        ed._run_r_de(matrix, groups, "rnaseq_count", tmp_path / "out.tsv")
+
+    message = str(excinfo.value)
+    # Names the missing dependency, and every documented way forward.
+    assert "needs R" in message
+    assert "conda" in message
+    assert "BiocManager" in message
+    assert "--de-results" in message
+    # Says which modes are unaffected, so the user is not blocked entirely.
+    assert "Gene-list and sequence modes do not require R" in message
+
+
+def test_missing_r_error_is_not_a_bare_filenotfound(tmp_path, monkeypatch):
+    import pandas as pd
+    import pytest
+
+    from orbit_ocsp import expression_de as ed
+
+    monkeypatch.setattr(ed.shutil, "which", lambda name: None)
+    matrix = pd.DataFrame({"s1": [1], "s2": [2]}, index=["g1"])
+    groups = pd.DataFrame(
+        {"sample_id": ["s1", "s2"], "group": ["case", "control"]}
+    )
+
+    # A FileNotFoundError here would mean the preflight check was bypassed and
+    # subprocess raised instead.
+    with pytest.raises(RuntimeError):
+        ed._run_r_de(matrix, groups, "rnaseq_count", tmp_path / "out.tsv")

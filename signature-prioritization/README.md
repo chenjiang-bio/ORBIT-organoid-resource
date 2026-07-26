@@ -23,13 +23,49 @@ the ORBIT web platform.
 
 ## Install
 
+**Recommended: clone, then let conda supply R.** Expression mode runs
+differential expression in R (DESeq2/edgeR/limma), which pip cannot install.
+Cloning also gives you `environment.yml`, the example data and the tutorial
+notebook.
+
 ```bash
-pip install orbit-ocsp
-orbit-ocsp-download-data --species hsa   # pathway background, ~350 MB
+git clone https://github.com/chenjiang-bio/ORBIT-organoid-resource.git
+cd ORBIT-organoid-resource/signature-prioritization
+
+conda env create -f environment.yml   # Python deps + R + Bioconductor
+conda activate orbit-ocsp
+pip install -e .
+
+orbit-ocsp-download-data --species hsa   # pathway background, 47 MB
 ```
 
+<details>
+<summary>pip only — fine for gene-list and sequence modes</summary>
+
+If you are not using expression mode, R is irrelevant and pip alone is enough:
+
+```bash
+pip install orbit-ocsp
+orbit-ocsp-download-data --species hsa
+```
+
+Expression mode will then fail with instructions until R is available, because
+`pip` cannot install R packages. Two ways to proceed from there: create the
+conda environment as above, or compute differential expression elsewhere and
+feed the table in with `--de-results table.tsv` (columns `gene`,
+`log2FoldChange`, `padj`), which skips R entirely.
+
+Note that `environment.yml` is **not** in the wheel — conda has to run before
+the package exists — so fetch it directly if you did not clone:
+
+```bash
+curl -O https://raw.githubusercontent.com/chenjiang-bio/ORBIT-organoid-resource/main/signature-prioritization/environment.yml
+```
+
+</details>
+
 The pathway background is fetched once, separately, because one of its files is
-199 MB and cannot ship in a wheel. Bundles: `hsa` 47 MB, `mmu` 35 MB, `full`
+199 MB and cannot ship in a package. Bundles: `hsa` 47 MB, `mmu` 35 MB, `full`
 73 MB.
 
 <details>
@@ -74,41 +110,38 @@ set, the bundle is extracted there rather than into `~/.orbit_ocsp/data`.
 <details>
 <summary>Other ways to install</summary>
 
-**Conda** — use this for expression mode. Differential expression runs in R, and
-conda installs DESeq2/edgeR/limma alongside the Python dependencies in one step;
-pip cannot install R packages.
-
-```bash
-conda env create -f environment.yml
-conda activate orbit-ocsp
-pip install orbit-ocsp
-```
-
-There is no `conda install orbit-ocsp`: OCSP is not on conda-forge or bioconda,
-so conda provides the environment and pip provides the package.
-
-**Straight from this repository**, without waiting for a release. OCSP is a
-subdirectory of the ORBIT resource repository, hence the `#subdirectory=`
-fragment:
+**Without cloning**, straight from the repository — OCSP is a subdirectory of
+the ORBIT resource repository, hence the `#subdirectory=` fragment:
 
 ```bash
 pip install "orbit-ocsp @ git+https://github.com/chenjiang-bio/ORBIT-organoid-resource.git#subdirectory=signature-prioritization"
 ```
 
-**From a local clone**, for development:
+**For development**, add the dev extra to the clone above:
 
 ```bash
-git clone https://github.com/chenjiang-bio/ORBIT-organoid-resource.git
-cd ORBIT-organoid-resource/signature-prioritization
 pip install -e ".[dev]"
+pytest -q
 ```
+
+There is no `conda install orbit-ocsp`: OCSP is not on conda-forge or bioconda,
+so conda supplies the environment and pip supplies the package.
 
 </details>
 
-Gene-list and sequence modes need only NumPy, SciPy and pandas. Expression mode
-additionally needs R with:
+### Requirements by mode
+
+| Mode | Needs |
+|------|-------|
+| gene list | NumPy, SciPy, pandas |
+| sequence | NumPy, SciPy, pandas |
+| expression | the above **plus R** with DESeq2, edgeR and limma |
+
+`conda env create -f environment.yml` covers all three. To add R to an existing
+install instead:
 
 ```r
+install.packages("BiocManager")
 BiocManager::install(c("DESeq2", "limma", "edgeR"))
 ```
 
