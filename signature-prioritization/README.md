@@ -78,9 +78,9 @@ networks. Three ways around it:
 
 ```bash
 # Any downloader, or a browser, or a colleague's copy:
-curl -LO https://github.com/chenjiang-bio/ORBIT-organoid-resource/releases/download/ocsp-data-v0.1.0/orbit-ocsp-data-hsa-0.1.0.tar.gz
+curl -LO https://github.com/chenjiang-bio/ORBIT-organoid-resource/releases/download/ocsp-data-v0.1.0/orbit-ocsp-data-hsa-0.1.1.tar.gz
 
-mkdir -p ~/ocsp-data && tar xzf orbit-ocsp-data-hsa-0.1.0.tar.gz -C ~/ocsp-data
+mkdir -p ~/ocsp-data && tar xzf orbit-ocsp-data-hsa-0.1.1.tar.gz -C ~/ocsp-data
 export ORBIT_OCSP_DATA=~/ocsp-data/data
 ```
 
