@@ -53,5 +53,10 @@ orbit-ocsp-list-fields = "orbit_ocsp.list_b_fields:main"
 [tool.setuptools]
 packages = ["orbit_ocsp"]
 
+# run_de.R must travel with the package: expression mode shells out to it, and
+# files outside the package directory are not installed by pip.
+[tool.setuptools.package-data]
+orbit_ocsp = ["R/*.R"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
