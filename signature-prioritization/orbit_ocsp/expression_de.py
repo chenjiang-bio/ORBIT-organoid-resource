@@ -13,6 +13,7 @@ Default backend is R (``R/run_de.R``), with sample-size–aware engine selection
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -282,6 +283,30 @@ def _run_r_de(
         raise FileNotFoundError(
             f"R DE script not found: {script}. "
             "Install R packages DESeq2/limma/edgeR, or use backend='mock' / --de-results."
+        )
+
+    # Fail with instructions rather than a bare FileNotFoundError from
+    # subprocess. pip cannot install R, so a pip-only user reaches this point
+    # with no idea what is missing.
+    if shutil.which(r_binary) is None:
+        raise RuntimeError(
+            f"Expression mode needs R, but {r_binary!r} was not found on PATH.\n"
+            "\n"
+            "Differential expression runs in R; pip cannot install it. Options:\n"
+            "\n"
+            "  1. conda (installs R and the Bioconductor packages together):\n"
+            "       conda env create -f environment.yml\n"
+            "       conda activate orbit-ocsp\n"
+            "\n"
+            "  2. Install R yourself, then:\n"
+            '       R -e \'install.packages("BiocManager"); '
+            "BiocManager::install(c(\"DESeq2\",\"limma\",\"edgeR\"))'\n"
+            "\n"
+            "  3. Skip R entirely: run differential expression elsewhere and\n"
+            "     pass the table with --de-results results.tsv, which needs\n"
+            "     columns gene, log2FoldChange, padj.\n"
+            "\n"
+            "Gene-list and sequence modes do not require R."
         )
 
     output_tsv = Path(output_tsv)
