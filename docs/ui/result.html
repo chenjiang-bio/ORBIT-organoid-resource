@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Result · OCSP</title>
+  <style>
+    :root {
+      --nav: #1f5c4a;
+      --teal: #0f766e;
+      --pink: #f3d6dc;
+      --ink: #1a1a1a;
+      --muted: #666;
+      --line: #d5d5d5;
+      --bg: #ececec;
+      --card: #fff;
+      --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); }
+    .wrap { max-width: 1180px; margin: 1rem auto 3rem; padding: 0 1rem; }
+    .page-title { font-size: 1.35rem; font-weight: 700; margin: 0.5rem 0 0.35rem; }
+    .page-sub { color: var(--muted); font-size: 0.9rem; margin: 0 0 0.85rem; }
+    .gene-select {
+      display: inline-block; background: var(--teal); color: #fff; border: none;
+      border-radius: 4px; padding: 0.45rem 0.85rem; font-weight: 700; min-width: 8rem;
+    }
+    .card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 4px;
+      margin-top: 0.85rem; overflow: hidden;
+    }
+    .card-head {
+      background: var(--pink); padding: 0.55rem 0.9rem; font-weight: 700; font-size: 0.95rem;
+      display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+    }
+    .card-body { padding: 0.85rem 1rem 1rem; }
+    .meta-grid {
+      display: grid; grid-template-columns: 140px 1fr 140px 1fr; gap: 0.35rem 0.75rem; font-size: 0.92rem;
+    }
+    @media (max-width: 720px) {
+      .meta-grid { grid-template-columns: 120px 1fr; }
+    }
+    .meta-grid .k { color: var(--muted); }
+    .tabs {
+      display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.85rem;
+    }
+    .tab {
+      border: none; background: #e5e5e5; color: #333; padding: 0.45rem 0.8rem;
+      border-radius: 3px; font-weight: 700; cursor: pointer; font-size: 0.88rem;
+    }
+    .tab.active { background: #4a4a4a; color: #fff; }
+    .tab.disabled { opacity: 0.45; cursor: not-allowed; }
+    .summary-head {
+      display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;
+      margin-bottom: 0.75rem; flex-wrap: wrap;
+    }
+    .report-btn, .ghost-btn {
+      background: var(--teal); color: #fff; border: none; border-radius: 4px;
+      padding: 0.35rem 0.75rem; font-weight: 700; cursor: pointer; font-size: 0.85rem;
+    }
+    .ghost-btn { background: #fff; color: var(--teal); border: 1px solid var(--teal); }
+    .kv {
+      display: grid; grid-template-columns: 220px 1fr; gap: 0.4rem 0.75rem;
+      font-size: 0.92rem; margin-bottom: 0.85rem;
+    }
+    .kv .k { color: var(--muted); }
+    .v-en { color: #15803d; font-weight: 700; }
+    .v-ns { color: #a16207; font-weight: 600; }
+    .term-btns { display: flex; gap: 0.55rem; flex-wrap: wrap; }
+    .term-btn {
+      border: 1px solid var(--line); background: #f8faf9; border-radius: 4px;
+      padding: 0.4rem 0.75rem; font-weight: 600; cursor: pointer;
+    }
+    .term-btn.active { border-color: var(--teal); background: #ecfdf5; }
+    .term-list {
+      margin-top: 0.65rem; font-size: 0.84rem; max-height: 320px; overflow: auto;
+      background: #fafafa; border: 1px solid var(--line); padding: 0.65rem 0.75rem; display: none;
+    }
+    .term-list.show { display: block; }
+    .term-item { padding: 0.55rem 0; border-bottom: 1px solid var(--line); }
+    .term-item:last-child { border-bottom: none; }
+    .term-head { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+    .term-id {
+      font-family: ui-monospace, Menlo, monospace; font-size: 0.78rem;
+      color: #475569; background: #f1f5f9; padding: 0.08rem 0.35rem; border-radius: 3px;
+    }
+    .term-badge {
+      font-size: 0.68rem; font-weight: 700; padding: 0.08rem 0.35rem;
+      border-radius: 3px; background: #e0e7ff; color: #3730a3;
+    }
+    .term-name { font-weight: 600; margin-top: 0.2rem; color: #0f172a; line-height: 1.35; }
+    .term-sub { font-size: 0.78rem; color: var(--muted); margin-top: 0.15rem; }
+    .term-def { font-size: 0.78rem; color: #64748b; margin-top: 0.25rem; line-height: 1.45; }
+    .term-link { font-size: 0.72rem; font-weight: 600; color: var(--teal); text-decoration: none; }
+    .term-loading { color: var(--muted); font-style: italic; padding: 0.25rem 0; }
+    .table-wrap { overflow: auto; max-height: min(62vh, 560px); border: 1px solid var(--line); }
+    table.rank, table.method {
+      width: 100%; border-collapse: collapse; font-size: 0.86rem;
+    }
+    table.rank th, table.method th {
+      background: var(--nav); color: #fff; text-align: left; padding: 0.5rem 0.55rem;
+      font-weight: 700; position: sticky; top: 0; z-index: 1;
+    }
+    table.rank td, table.method td {
+      border-bottom: 1px solid var(--line); padding: 0.42rem 0.55rem; white-space: nowrap;
+    }
+    table.rank tbody tr { cursor: pointer; }
+    table.rank tbody tr:hover { background: #f0faf7; }
+    table.rank tbody tr.selected { background: #dcf5ee; }
+    .section-label {
+      font-weight: 700; font-size: 0.88rem; margin: 0.85rem 0 0.4rem;
+    }
+    .section-label:first-child { margin-top: 0; }
+    .pill {
+      display: inline-block; padding: 0.1rem 0.45rem; border-radius: 999px;
+      font-size: 0.75rem; font-weight: 700;
+    }
+    .pill-en { background: #dcfce7; color: #166534; }
+    .pill-ns { background: #fef3c7; color: #92400e; }
+    .pill-pri { background: #dbeafe; color: #1e40af; }
+    .pill-sen { background: #f3f4f6; color: #374151; }
+    .pill-up { background: #fee2e2; color: #991b1b; }   /* OCSP rank improved (↑) vs DE → red */
+    .pill-down { background: #dcfce7; color: #166534; } /* OCSP rank dropped (↓) vs DE → green */
+    .pill-flat { background: #fef3c7; color: #92400e; } /* same rank → yellow */
+    .note { font-size: 0.82rem; color: var(--muted); margin: 0.5rem 0 0; }
+    .empty { text-align: center; color: #999; padding: 2rem 1rem; }
+    .back { color: var(--teal); font-weight: 600; text-decoration: none; font-size: 0.9rem; }
+    .hidden { display: none !important; }
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;
+      margin-bottom: 0.85rem;
+    }
+    .toolbar .left {
+      display: flex; flex-wrap: wrap; gap: 0.65rem; align-items: center; width: 100%;
+    }
+    input.search {
+      border: 1px solid var(--line); border-radius: 6px; padding: 0.45rem 0.7rem;
+      min-width: 12rem; flex: 1 1 12rem; font-size: 0.9rem; background: #fff;
+    }
+    input.search:focus {
+      outline: none; border-color: var(--teal); box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.15);
+    }
+    .filter-chip {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.35rem 0.7rem; border-radius: 999px; cursor: pointer;
+      border: 1px solid var(--line); background: #f7faf9; font-size: 0.85rem;
+      font-weight: 600; color: #334; user-select: none; transition: 0.12s ease;
+    }
+    .filter-chip:hover { border-color: #9bb; background: #eef6f4; }
+    .filter-chip input { accent-color: var(--teal); width: 0.95rem; height: 0.95rem; margin: 0; }
+    .filter-chip:has(input:checked) {
+      border-color: var(--teal); background: #ecfdf5; color: #0f5c54;
+    }
+    .seg {
+      display: inline-flex; align-items: stretch; border: 1px solid var(--line);
+      border-radius: 8px; overflow: hidden; background: #fff;
+    }
+    .seg-label {
+      display: inline-flex; align-items: center; padding: 0 0.65rem;
+      background: #f3f6f5; color: var(--muted); font-size: 0.78rem; font-weight: 700;
+      letter-spacing: 0.02em; border-right: 1px solid var(--line); white-space: nowrap;
+    }
+    .seg-opt {
+      position: relative; display: inline-flex; cursor: pointer; margin: 0;
+    }
+    .seg-opt input { position: absolute; opacity: 0; pointer-events: none; }
+    .seg-opt span {
+      display: inline-flex; align-items: center; padding: 0.42rem 0.75rem;
+      font-size: 0.85rem; font-weight: 600; color: #556; border-right: 1px solid var(--line);
+      background: #fff; transition: 0.12s ease;
+    }
+    .seg-opt:last-child span { border-right: none; }
+    .seg-opt:hover span { background: #f0faf7; color: #234; }
+    .seg-opt input:checked + span {
+      background: var(--teal); color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="index.html">← Back to input</a>
+    <h1 class="page-title">Result</h1>
+
+    <div class="card">
+      <div class="card-head">Meta Data</div>
+      <div class="card-body">
+        <div class="meta-grid">
+          <div class="k">Mode:</div><div id="meta-mode">—</div>
+          <div class="k">Condition:</div><div id="meta-condition">—</div>
+          <div class="k">Species:</div><div id="meta-species">—</div>
+          <div class="k">α:</div><div id="meta-alpha">—</div>
+          <div class="k">Input / scored:</div><div id="meta-counts">—</div>
+          <div class="k">Enriched:</div><div id="meta-enriched">—</div>
+          <div class="k">Methods:</div><div id="meta-methods">—</div>
+          <div class="k">Generated:</div><div id="meta-generated">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span>Ranked gene summary <span id="table-count" style="font-weight:600;opacity:.8"></span></span>
+        <button type="button" class="ghost-btn" id="btn-csv">Download CSV</button>
+      </div>
+      <div class="card-body">
+        <div class="toolbar">
+          <div class="left">
+            <input class="search" id="gene-search" type="search" placeholder="Filter gene symbol…" />
+            <label class="filter-chip" for="enriched-only">
+              <input type="checkbox" id="enriched-only" />
+              Enriched only
+            </label>
+            <div id="agree-filter-wrap" class="seg" style="display:inline-flex">
+              <span class="seg-label">Agreement</span>
+              <label class="seg-opt"><input type="radio" name="agree_min" value="LOW" checked /><span>Low</span></label>
+              <label class="seg-opt"><input type="radio" name="agree_min" value="MODERATE" /><span>Moderate</span></label>
+              <label class="seg-opt"><input type="radio" name="agree_min" value="HIGH" /><span>High</span></label>
+            </div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="rank" id="rank-table">
+            <thead id="rank-head"></thead>
+            <tbody id="rank-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="detail-card">
+      <div class="card-head">
+        <span>Gene detail</span>
+        <select id="gene-select" class="gene-select"></select>
+      </div>
+      <div class="card-body">
+        <div class="tabs" id="detail-tabs">
+          <button type="button" class="tab active" data-panel="summary">Executive Summary</button>
+          <button type="button" class="tab" data-panel="method" id="tab-methods">Methods</button>
+          <button type="button" class="tab disabled" title="Not in current product output" disabled>Homologous Genes</button>
+          <button type="button" class="tab disabled" title="Not in current product output" disabled>Gene annotation</button>
+        </div>
+
+        <div id="panel-summary">
+          <div class="summary-head">
+            <div id="detail-label">—</div>
+            <button type="button" class="report-btn" id="btn-report">Report</button>
+          </div>
+          <div class="kv" id="sum-kv">
+            <div class="k">Final Verdict:</div><div id="sum-verdict">—</div>
+            <div class="k">Primary method:</div><div id="sum-test">Hypergeometric</div>
+            <div class="k">Primary p-value:</div><div id="sum-p">—</div>
+            <div class="k">Overlap:</div><div id="sum-overlap">—</div>
+            <div class="k" id="sum-sens-k">Methods hit:</div><div id="sum-sens">—</div>
+            <div class="k" id="sum-agree-k">Agreement:</div><div id="sum-agree">—</div>
+          </div>
+          <div class="kv" id="sum-de">
+            <div class="k">DE rank:</div><div id="sum-de-rank">—</div>
+            <div class="k">log2FoldChange:</div><div id="sum-lfc">—</div>
+            <div class="k">DE padj:</div><div id="sum-padj">—</div>
+          </div>
+          <div class="term-btns">
+            <button type="button" class="term-btn" id="btn-go">GO Terms (0)</button>
+            <button type="button" class="term-btn" id="btn-kegg">KEGG Pathways (0)</button>
+          </div>
+          <div class="term-list" id="list-go"></div>
+          <div class="term-list" id="list-kegg"></div>
+        </div>
+
+        <div id="panel-method" class="hidden">
+          <div class="section-label">Primary</div>
+          <table class="method">
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Verdict</th>
+                <th>p</th>
+                <th>Overlap</th>
+                <th>Statistic</th>
+              </tr>
+            </thead>
+            <tbody id="method-primary-body"></tbody>
+          </table>
+          <div id="sensitivity-block">
+            <div class="section-label">Sensitivity</div>
+            <table class="method">
+              <thead>
+                <tr>
+                  <th>Method</th>
+                  <th>Verdict</th>
+                  <th>p</th>
+                  <th>Overlap</th>
+                  <th>Statistic</th>
+                </tr>
+              </thead>
+              <tbody id="method-sensitivity-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => [...document.querySelectorAll(s)];
+
+    const state = {
+      job: null,
+      gene: null,
+      hasExpression: false,
+      hasSensitivity: false,
+    };
+
+    function fmtP(p) {
+      if (p == null || Number.isNaN(Number(p))) return "—";
+      return Number(p).toExponential(2);
+    }
+
+    function fmtNum(x, digits = 3) {
+      if (x == null || x === "" || Number.isNaN(Number(x))) return "—";
+      const n = Number(x);
+      if (Math.abs(n) >= 1000 || (Math.abs(n) > 0 && Math.abs(n) < 0.001)) return n.toExponential(2);
+      return String(Number(n.toFixed(digits)));
+    }
+
+    function splitTerms(row) {
+      if (row.go_terms || row.kegg_terms) {
+        return { go: row.go_terms || [], kegg: row.kegg_terms || [] };
+      }
+      const go = [], kegg = [];
+      for (const t of row.overlap_terms || []) {
+        const s = String(t);
+        if (/^GO:/i.test(s)) go.push(s);
+        else if (/^(hsa|mmu|map|ko)\d/i.test(s)) kegg.push(s);
+        else go.push(s);
+      }
+      return { go, kegg };
+    }
+
+    function termId(t) {
+      if (t == null) return "";
+      if (typeof t === "object") return String(t.id || t.term || t.go_id || t.kegg_id || "").trim();
+      return String(t).trim();
+    }
+
+    const NS_LABEL = {
+      biological_process: "BP",
+      molecular_function: "MF",
+      cellular_component: "CC",
+    };
+
+    const termMetaCache = {
+      go: null,
+      kegg: { hsa: null, mmu: null },
+      pending: {},
+    };
+
+    function escHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function cleanDef(text, maxLen = 280) {
+      if (!text) return "";
+      let s = String(text).trim();
+      if (s.startsWith('"') && s.endsWith('"')) s = s.slice(1, -1);
+      if (s.length > maxLen) s = `${s.slice(0, maxLen - 1)}…`;
+      return s;
+    }
+
+    async function loadJsonOnce(key, url) {
+      if (termMetaCache.pending[key]) return termMetaCache.pending[key];
+      termMetaCache.pending[key] = fetch(url).then((r) => {
+        if (!r.ok) throw new Error(`Failed to load ${url}`);
+        return r.json();
+      });
+      return termMetaCache.pending[key];
+    }
+
+    async function ensureGoMeta() {
+      if (termMetaCache.go) return termMetaCache.go;
+      termMetaCache.go = await loadJsonOnce("go", "../data/meta/go_meta.json");
+      return termMetaCache.go;
+    }
+
+    async function ensureKeggMeta(species) {
+      const sp = species === "mmu" ? "mmu" : "hsa";
+      if (termMetaCache.kegg[sp]) return termMetaCache.kegg[sp];
+      termMetaCache.kegg[sp] = await loadJsonOnce(
+        `kegg_${sp}`,
+        `../data/meta/kegg_meta_${sp}.json`,
+      );
+      return termMetaCache.kegg[sp];
+    }
+
+    function keggSpeciesForId(id) {
+      return /^mmu/i.test(id) ? "mmu" : "hsa";
+    }
+
+    function formatGoEntry(id, meta) {
+      const m = meta?.[id] || {};
+      const ns = m.ns || "";
+      return {
+        id,
+        name: m.name || "—",
+        nsLabel: NS_LABEL[ns] || ns.replace(/_/g, " "),
+        def: cleanDef(m.def),
+      };
+    }
+
+    function formatKeggEntry(id, meta) {
+      const m = meta?.[id] || {};
+      const subtitle = [m.class, m.subcategory].filter(Boolean).join(" · ");
+      return {
+        id,
+        name: m.name || "—",
+        subtitle,
+        def: cleanDef(m.definition),
+        url: m.url || `https://www.kegg.jp/entry/${id}`,
+      };
+    }
+
+    function renderTermItems(container, entries, kind) {
+      container.innerHTML = "";
+      if (!entries.length) {
+        container.textContent = "(none)";
+        return;
+      }
+      const frag = document.createDocumentFragment();
+      for (const e of entries) {
+        const div = document.createElement("div");
+        div.className = "term-item";
+        if (kind === "go") {
+          div.innerHTML = `
+            <div class="term-head">
+              <code class="term-id">${escHtml(e.id)}</code>
+              ${e.nsLabel ? `<span class="term-badge">${escHtml(e.nsLabel)}</span>` : ""}
+            </div>
+            <div class="term-name">${escHtml(e.name)}</div>
+            ${e.def ? `<div class="term-def">${escHtml(e.def)}</div>` : ""}
+          `;
+        } else {
+          div.innerHTML = `
+            <div class="term-head">
+              <code class="term-id">${escHtml(e.id)}</code>
+              <a class="term-link" href="${escHtml(e.url)}" target="_blank" rel="noopener">KEGG ↗</a>
+            </div>
+            <div class="term-name">${escHtml(e.name)}</div>
+            ${e.subtitle ? `<div class="term-sub">${escHtml(e.subtitle)}</div>` : ""}
+            ${e.def ? `<div class="term-def">${escHtml(e.def)}</div>` : ""}
+          `;
+        }
+        frag.appendChild(div);
+      }
+      container.appendChild(frag);
+    }
+
+    function goEntryFromRaw(raw, meta) {
+      if (typeof raw === "object" && raw !== null) {
+        const id = termId(raw);
+        const ns = raw.ns || meta?.[id]?.ns || "";
+        return {
+          id,
+          name: raw.name || meta?.[id]?.name || "—",
+          nsLabel: NS_LABEL[ns] || ns.replace(/_/g, " "),
+          def: cleanDef(raw.def || raw.definition || meta?.[id]?.def),
+        };
+      }
+      return formatGoEntry(termId(raw), meta || {});
+    }
+
+    function keggEntryFromRaw(raw, meta) {
+      if (typeof raw === "object" && raw !== null) {
+        const id = termId(raw);
+        const m = { ...(meta?.[id] || {}), ...raw };
+        return formatKeggEntry(id, { [id]: m });
+      }
+      return formatKeggEntry(termId(raw), meta || {});
+    }
+
+    async function renderTermLists(goRaw, keggRaw) {
+      const goList = $("#list-go");
+      const keggList = $("#list-kegg");
+      if (!goRaw.length) goList.textContent = "(none)";
+      else goList.innerHTML = '<div class="term-loading">Loading GO annotations…</div>';
+      if (!keggRaw.length) keggList.textContent = "(none)";
+      else keggList.innerHTML = '<div class="term-loading">Loading KEGG annotations…</div>';
+
+      try {
+        const goNeedMeta = goRaw.some((t) => typeof t !== "object" || !t.name);
+        const keggNeedMeta = keggRaw.some((t) => typeof t !== "object" || !t.name);
+
+        const goMeta = goNeedMeta ? await ensureGoMeta() : {};
+        const keggHsaIds = keggRaw
+          .map(termId)
+          .filter((id) => id && keggSpeciesForId(id) === "hsa");
+        const keggMmuIds = keggRaw
+          .map(termId)
+          .filter((id) => id && keggSpeciesForId(id) === "mmu");
+        const keggMetaHsa = keggNeedMeta && keggHsaIds.length ? await ensureKeggMeta("hsa") : {};
+        const keggMetaMmu = keggNeedMeta && keggMmuIds.length ? await ensureKeggMeta("mmu") : {};
+
+        if (goRaw.length) {
+          renderTermItems(
+            goList,
+            goRaw.map((t) => goEntryFromRaw(t, goMeta)),
+            "go",
+          );
+        }
+        if (keggRaw.length) {
+          const keggEntries = keggRaw
+            .map((t) => {
+              const id = termId(t);
+              const meta = keggSpeciesForId(id) === "mmu" ? keggMetaMmu : keggMetaHsa;
+              return keggEntryFromRaw(t, meta);
+            })
+            .sort((a, b) => a.id.localeCompare(b.id));
+          renderTermItems(keggList, keggEntries, "kegg");
+        }
+      } catch (err) {
+        console.warn("term meta load failed", err);
+        if (goRaw.length) goList.textContent = goRaw.map(termId).join("\n");
+        if (keggRaw.length) keggList.textContent = keggRaw.map(termId).join("\n");
+      }
+    }
+
+    function rowMethods(row) {
+      if (Array.isArray(row?.methods) && row.methods.length) return row.methods;
+      if (Array.isArray(row?.individual_methods) && row.individual_methods.length) {
+        return row.individual_methods.map((m) => ({
+          ...m,
+          role: (m.method === "hypergeometric" || m.role === "primary") ? (m.role || "primary") : (m.role || "sensitivity"),
+        }));
+      }
+      return [{
+        method: "hypergeometric",
+        role: "primary",
+        verdict: row?.verdict,
+        p_value: row?.primary_p ?? row?.primary_p_value,
+        p_value_formatted: row?.primary_p_formatted,
+        q_value: null,
+        n_overlap: row?.n_overlap,
+        n_a: row?.n_a,
+      }];
+    }
+
+    function partitionMethods(row) {
+      const methods = rowMethods(row);
+      const primary = methods.filter((m) => (m.role || (m.method === "hypergeometric" ? "primary" : "sensitivity")) === "primary");
+      const sensitivity = methods.filter((m) => (m.role || (m.method === "hypergeometric" ? "primary" : "sensitivity")) !== "primary");
+      // if nothing tagged primary but HG present, promote HG
+      if (!primary.length) {
+        const hg = methods.find((m) => m.method === "hypergeometric");
+        if (hg) return { primary: [{ ...hg, role: "primary" }], sensitivity: methods.filter((m) => m !== hg) };
+        return { primary: methods.slice(0, 1), sensitivity: methods.slice(1) };
+      }
+      return { primary, sensitivity };
+    }
+
+    function methodHitSummary(row) {
+      // Same denominator as Agreement: all methods (usually 5 = HG + 4 sensitivity).
+      if (row.agreement != null && row.total_methods != null && row.total_methods > 1) {
+        return `${row.agreement}/${row.total_methods}`;
+      }
+      const methods = rowMethods(row).filter((m) => m.verdict !== "error");
+      if (methods.length <= 1) return null;
+      const hit = methods.filter((m) => m.verdict === "enriched" || m.verdict === "significant").length;
+      return `${hit}/${methods.length}`;
+    }
+
+    function detectCapabilities(job) {
+      const rows = job?.results || [];
+      state.hasExpression = (job?.mode || "").toLowerCase() === "expression"
+        || rows.some((r) => r.de_rank != null || r.log2FoldChange != null || r.padj != null);
+      const fromJob = Array.isArray(job?.sensitivity_methods) && job.sensitivity_methods.length > 0;
+      const fromRows = rows.some((r) => partitionMethods(r).sensitivity.length > 0);
+      state.hasSensitivity = fromJob || fromRows;
+    }
+
+    function agreementTier(row) {
+      if (row.agreement_tier) return String(row.agreement_tier).toUpperCase();
+      const methods = rowMethods(row);
+      if (methods.length <= 1) return "N/A";
+      const valid = methods.filter((m) => m.verdict !== "error");
+      if (!valid.length || row.verdict !== "enriched") return "N/A";
+      const enriched = valid.filter((m) => m.verdict === "enriched").length;
+      // Five-method product rule: ≥4 HIGH, ==3 MODERATE, ≤2 LOW
+      if (enriched >= 4) return "HIGH";
+      if (enriched === 3) return "MODERATE";
+      return "LOW";
+    }
+
+    function agreementRank(tier) {
+      const t = String(tier || "N/A").toUpperCase();
+      if (t === "HIGH") return 3;
+      if (t === "MODERATE" || t === "MEDIUM") return 2;
+      if (t === "LOW") return 1;
+      return 0; // N/A
+    }
+
+    function passesAgreementFloor(row, minTier) {
+      const min = String(minTier || "LOW").toUpperCase();
+      if (min === "LOW") return true; // no floor: keep all rows
+      const rank = agreementRank(agreementTier(row));
+      return rank >= agreementRank(min);
+    }
+
+    function filteredRows() {
+      const q = ($("#gene-search").value || "").trim().toUpperCase();
+      const enrichedOnly = $("#enriched-only")?.checked;
+      const agreeMin = ($('input[name="agree_min"]:checked') || {}).value || "LOW";
+      let rows = state.job?.results || [];
+      if (enrichedOnly) rows = rows.filter((r) => r.verdict === "enriched");
+      if (state.hasSensitivity) rows = rows.filter((r) => passesAgreementFloor(r, agreeMin));
+      if (q) rows = rows.filter((r) => String(r.gene || "").toUpperCase().includes(q));
+      return rows;
+    }
+
+    function methodLabel(name) {
+      const key = String(name || "").toLowerCase();
+      const map = {
+        hypergeometric: "Hypergeometric",
+        exact_hypergeometric: "Hypergeometric",
+        jaccard: "Jaccard",
+        overlap: "Overlap",
+        resnik_bma: "Resnik",
+        lin_bma: "Lin",
+        resnik: "Resnik",
+        lin: "Lin",
+      };
+      return map[key] || name || "—";
+    }
+
+    function verdictLabel(v) {
+      const key = String(v || "").toLowerCase();
+      if (key === "enriched") return "Enriched";
+      if (key === "not_sig" || key === "not_significant") return "Not significant";
+      if (key === "no_pathways") return "No pathways";
+      return v || "—";
+    }
+
+    function modeLabel(mode) {
+      const key = String(mode || "").toLowerCase();
+      if (key === "expression") return "Expression";
+      if (key === "genes") return "Gene list";
+      if (key === "sequence") return "Sequence";
+      return mode || "—";
+    }
+
+    function speciesLabel(sp) {
+      const key = String(sp || "").toLowerCase();
+      if (key === "hsa" || key === "human") return "Human";
+      if (key === "mmu" || key === "mouse") return "Mouse";
+      return sp || "—";
+    }
+
+    function verdictPill(v) {
+      const en = String(v || "").toLowerCase() === "enriched";
+      return `<span class="pill ${en ? "pill-en" : "pill-ns"}">${verdictLabel(v)}</span>`;
+    }
+
+    function agreePill(tier) {
+      const t = String(tier || "N/A").toUpperCase();
+      const cls = t === "HIGH" ? "pill-en" : t === "MODERATE" || t === "MEDIUM" ? "pill-ns" : "pill-sen";
+      return `<span class="pill ${cls}">${t}</span>`;
+    }
+
+    /** Color OCSP Rank vs DE rank: up=red, down=green, flat=yellow. */
+    function rankPill(row) {
+      const ocsp = row.rank;
+      if (ocsp == null || ocsp === "" || Number.isNaN(Number(ocsp))) return "—";
+      const rN = Number(ocsp);
+      const label = String(rN);
+      const de = row.de_rank;
+      if (de == null || de === "" || Number.isNaN(Number(de))) {
+        return `<span class="pill pill-sen">${label}</span>`;
+      }
+      const deN = Number(de);
+      let cls = "pill-flat";
+      let tip = `same as DE rank ${deN}`;
+      if (rN < deN) {
+        cls = "pill-up";
+        tip = `Rank ${rN} ↑ vs DE ${deN}`;
+      } else if (rN > deN) {
+        cls = "pill-down";
+        tip = `Rank ${rN} ↓ vs DE ${deN}`;
+      }
+      return `<span class="pill ${cls}" title="${tip}">${label}</span>`;
+    }
+
+    function methodOverlap(m) {
+      if (m.n_overlap != null || m.n_a != null) {
+        return `${m.n_overlap ?? "—"} / ${m.n_a ?? "—"}`;
+      }
+      return "—";
+    }
+
+    function methodSobs(m) {
+      // Observed statistic for that method (jaccard index, BMA similarity, …).
+      // NOT confidence / agreement.
+      const v = m.s_obs != null ? m.s_obs : m.score;
+      return v == null ? "—" : fmtNum(v);
+    }
+
+    function renderMethodRows(tbody, methods, emptyText) {
+      tbody.innerHTML = "";
+      if (!methods.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty">${emptyText}</td></tr>`;
+        return;
+      }
+      for (const m of methods) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${methodLabel(m.method)}</td>
+          <td>${verdictPill(m.verdict)}</td>
+          <td>${m.p_value_formatted || fmtP(m.p_value)}</td>
+          <td>${methodOverlap(m)}</td>
+          <td>${methodSobs(m)}</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    function renderJobMeta() {
+      const job = state.job || {};
+      detectCapabilities(job);
+      const runNames = Array.isArray(job.methods_run) && job.methods_run.length
+        ? job.methods_run
+        : state.hasSensitivity
+          ? ["hypergeometric", "jaccard", "overlap", "resnik_bma", "lin_bma"]
+          : ["hypergeometric"];
+
+      $("#meta-mode").textContent = modeLabel(job.mode);
+      $("#meta-condition").textContent = job.condition || "—";
+      $("#meta-species").textContent = speciesLabel(job.species);
+      $("#meta-alpha").textContent = job.alpha ?? 0.005;
+      $("#meta-counts").textContent = `${job.n_input ?? "—"} / ${job.n_scored ?? (job.results || []).length}`;
+      $("#meta-enriched").textContent = job.n_enriched ?? (job.results || []).filter((r) => r.verdict === "enriched").length;
+      $("#meta-methods").textContent = runNames.map(methodLabel).join(", ");
+      $("#meta-generated").textContent = job.generated || "—";
+
+      // Unified layout: never hide ALL / EXPR slots — fill "—" when absent.
+      $("#sum-de").classList.remove("hidden");
+      $("#sum-sens-k").classList.remove("hidden");
+      $("#sum-sens").classList.remove("hidden");
+      $("#sum-agree-k").classList.remove("hidden");
+      $("#sum-agree").classList.remove("hidden");
+      const wrap = $("#agree-filter-wrap");
+      wrap.classList.remove("hidden");
+      wrap.style.display = "inline-flex";
+      wrap.querySelectorAll("input").forEach((el) => {
+        el.disabled = !state.hasSensitivity;
+      });
+      wrap.style.opacity = state.hasSensitivity ? "1" : "0.55";
+
+      $("#sensitivity-block").classList.remove("hidden");
+      $("#tab-methods").textContent = "Methods";
+    }
+
+    function renderRankTable() {
+      const rows = filteredRows();
+      const all = state.job?.results || [];
+      $("#table-count").textContent = `(showing ${rows.length} / ${all.length})`;
+
+      const cols = [
+        { key: "rank", label: "Rank" },
+        { key: "gene", label: "Gene" },
+        { key: "de_rank", label: "DE rank" },
+        { key: "log2FoldChange", label: "log2FC" },
+        { key: "padj", label: "DE padj" },
+        { key: "verdict", label: "Verdict" },
+        { key: "primary_p", label: "Primary p" },
+        { key: "sensitivity", label: "Methods hit" },
+        { key: "agreement", label: "Agreement" },
+        { key: "n_overlap", label: "Overlap" },
+        { key: "n_a", label: "A size" },
+        { key: "n_go", label: "GO" },
+        { key: "n_kegg", label: "KEGG" },
+      ];
+
+      $("#rank-head").innerHTML = `<tr>${cols.map((c) => `<th>${c.label}</th>`).join("")}</tr>`;
+      const body = $("#rank-body");
+      body.innerHTML = "";
+      if (!rows.length) {
+        body.innerHTML = `<tr><td colspan="${cols.length}" class="empty">No genes in current filter</td></tr>`;
+        return;
+      }
+
+      for (const r of rows) {
+        const { go, kegg } = splitTerms(r);
+        const nGo = r.n_go != null ? r.n_go : go.length;
+        const nKegg = r.n_kegg != null ? r.n_kegg : kegg.length;
+        const sens = methodHitSummary(r);
+        const tier = agreementTier(r);
+        const tr = document.createElement("tr");
+        if (r.gene === state.gene) tr.classList.add("selected");
+        const cells = {
+          rank: state.hasExpression ? rankPill(r) : (r.rank ?? "—"),
+          gene: `<strong>${r.gene}</strong>`,
+          de_rank: state.hasExpression ? (r.de_rank ?? "—") : "—",
+          log2FoldChange: state.hasExpression ? fmtNum(r.log2FoldChange) : "—",
+          padj: state.hasExpression && r.padj != null ? fmtP(r.padj) : "—",
+          verdict: verdictPill(r.verdict),
+          primary_p: r.primary_p_formatted || fmtP(r.primary_p ?? r.primary_p_value),
+          sensitivity: state.hasSensitivity && sens ? `<span class="pill pill-sen">${sens}</span>` : "—",
+          agreement: state.hasSensitivity ? agreePill(tier) : "—",
+          n_overlap: r.n_overlap ?? 0,
+          n_a: r.n_a ?? "—",
+          n_go: nGo,
+          n_kegg: nKegg,
+        };
+        tr.innerHTML = cols.map((c) => `<td>${cells[c.key]}</td>`).join("");
+        tr.addEventListener("click", () => {
+          state.gene = r.gene;
+          $("#gene-select").value = r.gene;
+          renderGene();
+          renderRankTable();
+          $("#detail-card").scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+        body.appendChild(tr);
+      }
+    }
+
+    function fillGeneSelect() {
+      const sel = $("#gene-select");
+      const rows = filteredRows();
+      const prev = state.gene;
+      sel.innerHTML = "";
+      if (!rows.length) {
+        const o = document.createElement("option");
+        o.textContent = "(no genes in this filter)";
+        sel.appendChild(o);
+        state.gene = null;
+        renderGene();
+        renderRankTable();
+        return;
+      }
+      for (const r of rows) {
+        const o = document.createElement("option");
+        o.value = r.gene;
+        o.textContent = `${r.rank != null ? r.rank + ". " : ""}${r.gene}`;
+        sel.appendChild(o);
+      }
+      if (prev && rows.some((r) => r.gene === prev)) sel.value = prev;
+      else sel.value = rows[0].gene;
+      state.gene = sel.value;
+      renderGene();
+      renderRankTable();
+    }
+
+    function currentRow() {
+      return (state.job?.results || []).find((r) => r.gene === state.gene) || null;
+    }
+
+    function renderGene() {
+      const row = currentRow();
+      const job = state.job || {};
+
+      if (!row) {
+        $("#sum-verdict").textContent = "—";
+        $("#sum-p").textContent = "—";
+        $("#sum-overlap").textContent = "—";
+        $("#sum-sens").textContent = "—";
+        $("#sum-agree").textContent = "—";
+        $("#detail-label").textContent = "—";
+        $("#btn-go").textContent = "GO Terms (0)";
+        $("#btn-kegg").textContent = "KEGG Pathways (0)";
+        $("#list-go").innerHTML = "";
+        $("#list-kegg").innerHTML = "";
+        $("#sum-de-rank").textContent = "—";
+        $("#sum-lfc").textContent = "—";
+        $("#sum-padj").textContent = "—";
+        renderMethodRows($("#method-primary-body"), [], "No data");
+        renderMethodRows($("#method-sensitivity-body"), [], "No sensitivity methods");
+        return;
+      }
+
+      const v = row.verdict || "—";
+      $("#sum-verdict").innerHTML = `<span class="${v === "enriched" ? "v-en" : "v-ns"}">${verdictLabel(v)}</span>`;
+      $("#sum-test").textContent = "Hypergeometric";
+      $("#sum-p").textContent = row.primary_p_formatted || fmtP(row.primary_p ?? row.primary_p_value);
+      $("#sum-overlap").textContent = `${row.n_overlap ?? 0} / ${row.n_a ?? 0} (A) · |B|=${row.n_b ?? "—"} · |U|=${row.n_universe ?? "—"}`;
+      const sens = methodHitSummary(row);
+      $("#sum-sens").textContent = state.hasSensitivity && sens ? sens : "—";
+      const tier = agreementTier(row);
+      $("#sum-agree").innerHTML = state.hasSensitivity ? agreePill(tier) : "—";
+      $("#detail-label").textContent = `${row.gene} · ${row.condition || job.condition || ""}`;
+
+      $("#sum-de-rank").textContent = state.hasExpression ? (row.de_rank ?? "—") : "—";
+      $("#sum-lfc").textContent = state.hasExpression ? fmtNum(row.log2FoldChange) : "—";
+      $("#sum-padj").textContent = state.hasExpression && row.padj != null ? fmtP(row.padj) : "—";
+
+      const { go, kegg } = splitTerms(row);
+      $("#btn-go").textContent = `GO Terms (${go.length})`;
+      $("#btn-kegg").textContent = `KEGG Pathways (${kegg.length})`;
+      void renderTermLists(go, kegg);
+
+      const { primary, sensitivity } = partitionMethods(row);
+      renderMethodRows($("#method-primary-body"), primary, "No primary method");
+      renderMethodRows(
+        $("#method-sensitivity-body"),
+        state.hasSensitivity ? sensitivity : [],
+        state.hasSensitivity ? "No sensitivity methods" : "— (Primary only; All methods fills this block)",
+      );
+    }
+
+    function showPanel(name) {
+      $("#panel-summary").classList.toggle("hidden", name !== "summary");
+      $("#panel-method").classList.toggle("hidden", name !== "method");
+      $$("#detail-tabs .tab").forEach((t) => {
+        if (t.disabled) return;
+        t.classList.toggle("active", t.dataset.panel === name);
+      });
+    }
+
+    function downloadCsv() {
+      const rows = filteredRows();
+      const headers = ["rank", "gene", "de_rank", "log2FoldChange", "padj", "verdict", "primary_p", "methods_hit", "agreement_tier", "n_overlap", "n_a", "n_b", "n_universe", "n_go", "n_kegg"];
+      const lines = [headers.join(",")];
+      for (const r of rows) {
+        const { go, kegg } = splitTerms(r);
+        const map = {
+          rank: r.rank ?? "",
+          gene: r.gene ?? "",
+          de_rank: state.hasExpression ? (r.de_rank ?? "") : "",
+          log2FoldChange: state.hasExpression ? (r.log2FoldChange ?? "") : "",
+          padj: state.hasExpression ? (r.padj ?? "") : "",
+          verdict: r.verdict ?? "",
+          primary_p: r.primary_p ?? r.primary_p_value ?? "",
+          methods_hit: state.hasSensitivity ? (methodHitSummary(r) || "") : "",
+          agreement_tier: state.hasSensitivity ? agreementTier(r) : "",
+          n_overlap: r.n_overlap ?? "",
+          n_a: r.n_a ?? "",
+          n_b: r.n_b ?? "",
+          n_universe: r.n_universe ?? "",
+          n_go: r.n_go != null ? r.n_go : go.length,
+          n_kegg: r.n_kegg != null ? r.n_kegg : kegg.length,
+        };
+        lines.push(headers.map((h) => {
+          const s = String(map[h] ?? "");
+          return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
+        }).join(","));
+      }
+      const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${(state.job?.job_id || "ocsp")}_ranked_genes.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function toPrimaryOnly(job) {
+      const out = JSON.parse(JSON.stringify(job || {}));
+      out.methods_run = ["hypergeometric"];
+      out.sensitivity_methods = [];
+      for (const r of out.results || []) {
+        const methods = Array.isArray(r.methods) ? r.methods : [];
+        const primary = methods.find((m) => m.role === "primary" || m.method === "hypergeometric")
+          || {
+            method: "hypergeometric",
+            role: "primary",
+            verdict: r.verdict,
+            p_value: r.primary_p,
+            p_value_formatted: r.primary_p_formatted,
+            n_overlap: r.n_overlap,
+            n_a: r.n_a,
+            n_b: r.n_b,
+          };
+        r.methods = [{ ...primary, role: "primary" }];
+        r.agreement_tier = "N/A";
+        r.agreement = r.verdict === "enriched" ? 1 : 0;
+        r.total_methods = 1;
+        r.consensus_score = r.verdict === "enriched" ? 1 : 0;
+      }
+      return out;
+    }
+
+    function normalizePipelineRow(row, index) {
+      const score = row.biomarker_score || {};
+      return {
+        rank: row.biomarker_rank ?? index + 1,
+        gene: row.gene_symbol || row.query_id,
+        condition: row.condition,
+        de_rank: row.de_rank,
+        log2FoldChange: row.log2FoldChange,
+        padj: row.padj,
+        verdict: score.verdict,
+        primary_p: score.primary_p_value,
+        primary_p_value: score.primary_p_value,
+        n_overlap: score.n_overlap_terms,
+        n_a: score.n_a_terms,
+        n_b: score.n_b_terms,
+        overlap_terms: score.overlap_terms || [],
+        agreement: score.agreement,
+        total_methods: score.total_methods,
+        confidence: score.confidence,
+        individual_methods: score.individual_methods || [],
+        methods: score.individual_methods,
+        report_dir: score.report_dir,
+      };
+    }
+
+    function normalizePipelineJob(summary, ranked, opts = {}) {
+      const results = (ranked || []).map((row, i) => normalizePipelineRow(row, i));
+      const allMethods = ["hypergeometric", "jaccard", "overlap", "resnik_bma", "lin_bma"];
+      const methodsRun = opts.methods === "primary" ? ["hypergeometric"] : allMethods;
+      return {
+        mode: "expression",
+        condition: summary.condition,
+        species: summary.species,
+        alpha: 0.005,
+        n_input: summary.n_de_genes_input ?? summary.n_topk,
+        n_scored: summary.n_ranked ?? results.length,
+        n_enriched: results.filter((r) => r.verdict === "enriched").length,
+        methods_run: methodsRun,
+        sensitivity_methods: methodsRun.slice(1),
+        results,
+        generated: summary.generated || new Date().toISOString(),
+      };
+    }
+
+    async function loadPipelineOutput(methods) {
+      const [ranked, summary] = await Promise.all([
+        fetch("../outputs/biomarker_ranked.json").then((r) => {
+          if (!r.ok) throw new Error("Missing outputs/biomarker_ranked.json — run scripts/populate_outputs.sh");
+          return r.json();
+        }),
+        fetch("../outputs/pipeline_summary.json").then((r) => {
+          if (!r.ok) throw new Error("Missing outputs/pipeline_summary.json — run scripts/populate_outputs.sh");
+          return r.json();
+        }),
+      ]);
+      return normalizePipelineJob(summary, ranked, { methods });
+    }
+
+    $("#gene-select").addEventListener("change", (e) => {
+      state.gene = e.target.value;
+      renderGene();
+      renderRankTable();
+    });
+    $("#gene-search").addEventListener("input", fillGeneSelect);
+    $("#enriched-only").addEventListener("change", fillGeneSelect);
+    $$('input[name="agree_min"]').forEach((el) => el.addEventListener("change", fillGeneSelect));
+    $$("#detail-tabs .tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        showPanel(btn.dataset.panel);
+      });
+    });
+    $("#btn-go").addEventListener("click", () => {
+      $("#list-go").classList.toggle("show");
+      $("#list-kegg").classList.remove("show");
+      $("#btn-go").classList.toggle("active");
+      $("#btn-kegg").classList.remove("active");
+    });
+    $("#btn-kegg").addEventListener("click", () => {
+      $("#list-kegg").classList.toggle("show");
+      $("#list-go").classList.remove("show");
+      $("#btn-kegg").classList.toggle("active");
+      $("#btn-go").classList.remove("active");
+    });
+    $("#btn-report").addEventListener("click", () => {
+      const row = currentRow();
+      if (!row) return;
+      const cond = String(row.condition || state.job.condition || "").replaceAll(" ", "_");
+      const reportDir = row.report_dir || `gene_reports/${row.gene}__${cond}`;
+      window.open(`../outputs/${reportDir}/ENSEMBLE.json`, "_blank");
+    });
+    $("#btn-csv").addEventListener("click", downloadCsv);
+
+    (async () => {
+      const params = new URLSearchParams(location.search);
+      const methods = params.get("methods") || "all";
+      try {
+        state.job = await loadPipelineOutput(methods);
+        if (methods === "primary") state.job = toPrimaryOnly(state.job);
+        state.job._request = { methods };
+        renderJobMeta();
+        fillGeneSelect();
+      } catch (err) {
+        document.querySelector(".wrap").innerHTML = `
+          <a class="back" href="index.html">← Back to input</a>
+          <h1 class="page-title">Result</h1>
+          <p class="page-sub">${escHtml(err.message || err)}</p>`;
+      }
+    })();
+  </script>
+</body>
+</html>

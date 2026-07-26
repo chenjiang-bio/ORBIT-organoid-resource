@@ -1,0 +1,18 @@
+{
+  "n_de_genes_input": 35,
+  "n_topk": 2,
+  "n_ranked": 2,
+  "condition": "Colorectal Cancer",
+  "species": "hsa",
+  "data_type": "microarray",
+  "padj_max": 0.05,
+  "abs_log2fc_min": 1.0,
+  "top_k": 20,
+  "outputs": {
+    "de_results": "handoff/ocsp_min/.smoke_out_expression_hsa/de_results.tsv",
+    "topk_de_genes": "handoff/ocsp_min/.smoke_out_expression_hsa/topk_de_genes.tsv",
+    "biomarker_ranked_json": "handoff/ocsp_min/.smoke_out_expression_hsa/biomarker_ranked.json",
+    "biomarker_ranked_tsv": "handoff/ocsp_min/.smoke_out_expression_hsa/biomarker_ranked.tsv",
+    "method_scores": "handoff/ocsp_min/.smoke_out_expression_hsa/method_scores.tsv"
+  }
+}

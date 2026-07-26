@@ -1,0 +1,276 @@
+{
+  "metadata": {
+    "title": "Ensemble Enrichment Analysis Report",
+    "generated": "2026-07-25 11:52:38",
+    "type": "ensemble_report",
+    "strategy": "primary_hypergeometric_only"
+  },
+  "config": {
+    "condition": "Colorectal Cancer",
+    "gene_name": "OLFM4",
+    "species": "hsa",
+    "ensemble_methods": [
+      "hypergeometric",
+      "jaccard",
+      "overlap",
+      "resnik_bma",
+      "lin_bma"
+    ],
+    "alpha": 0.05,
+    "seed": 42
+  },
+  "ensemble_result": {
+    "verdict": "enriched",
+    "confidence": "MODERATE",
+    "consensus_score": 0.6,
+    "agreement": 3,
+    "total_methods": 5,
+    "primary_test": "exact_hypergeometric",
+    "primary_p_value": 0.015587620253967132,
+    "primary_q_value": null,
+    "agreement_tier": "MODERATE",
+    "agreement_tier_note": "Descriptive; not a calibrated probability.",
+    "multiple_testing_note": "Apply BH across candidate hypotheses using primary p-values.",
+    "combined_p_value": 0.015587620253967132,
+    "combined_p_value_formatted": "1.56e-02",
+    "combined_p_value_go": null,
+    "combined_p_value_go_formatted": "NA",
+    "combined_p_value_kegg": null,
+    "combined_p_value_kegg_formatted": "NA"
+  },
+  "individual_methods": [
+    {
+      "method": "hypergeometric",
+      "verdict": "enriched",
+      "p_value": 0.015587620253967132,
+      "p_value_formatted": "1.56e-02",
+      "q_value": null,
+      "q_value_formatted": "NA",
+      "effect_size": 4.837161373625009,
+      "s_obs": 9.0,
+      "runtime": 0.021281957626342773,
+      "metadata": {
+        "R": 0,
+        "test_type": "exact_hypergeometric",
+        "A_size": 25,
+        "B_size": 6706,
+        "U_size": 40273,
+        "intersection_size": 9,
+        "enriched_terms": [
+          "GO:0050764",
+          "GO:1904724",
+          "GO:0045296",
+          "GO:0045171",
+          "GO:0042582",
+          "GO:0035580",
+          "GO:0042581",
+          "GO:0043312",
+          "GO:1900026"
+        ],
+        "mu": 4.162838626374991,
+        "sd": 0.0,
+        "component_tests": "skipped"
+      }
+    },
+    {
+      "method": "jaccard",
+      "verdict": "enriched",
+      "p_value": 0.03482587064676617,
+      "p_value_formatted": "3.48e-02",
+      "q_value": null,
+      "q_value_formatted": "NA",
+      "effect_size": 0.0007367435885787629,
+      "s_obs": 0.001338887235941684,
+      "runtime": 0.5496859550476074,
+      "metadata": {
+        "R": 200,
+        "test_type": "empirical_permutation",
+        "A_size": 25,
+        "B_size": 6706,
+        "U_size": 40273,
+        "intersection_size": 9,
+        "enriched_terms": [
+          "GO:0050764",
+          "GO:1904724",
+          "GO:0045296",
+          "GO:0045171",
+          "GO:0042582",
+          "GO:0035580",
+          "GO:0042581",
+          "GO:0043312",
+          "GO:1900026"
+        ],
+        "mu": 0.000602143647362921,
+        "sd": 0.000297054121343886,
+        "component_tests": "skipped"
+      }
+    },
+    {
+      "method": "lin_bma",
+      "verdict": "screening_not_sig",
+      "p_value": 0.49019607843137253,
+      "p_value_formatted": "4.90e-01",
+      "q_value": null,
+      "q_value_formatted": "NA",
+      "effect_size": -0.002144239640357065,
+      "s_obs": 0.18537794662989637,
+      "runtime": 0.2139880657196045,
+      "metadata": {
+        "R": 50,
+        "test_type": "empirical_permutation",
+        "A_size": 25,
+        "B_size": 6706,
+        "U_size": 40273,
+        "intersection_size": 9,
+        "enriched_terms": [
+          "GO:0050764",
+          "GO:1904724",
+          "GO:0045296",
+          "GO:0045171",
+          "GO:0042582",
+          "GO:0035580",
+          "GO:0042581",
+          "GO:0043312",
+          "GO:1900026"
+        ],
+        "mu": 0.18752218627025344,
+        "sd": 0.026573343970296804,
+        "component_tests": "skipped",
+        "semantic_term_cap": 100,
+        "B_GO_size_evaluated": 100,
+        "semantic_subset_sha256": "ad337ea624d681181be371690ab1f7f4376e27af26c07e5154f674c395bf3145",
+        "semantic_null_model": "namespace_depth_ic_matched",
+        "semantic_scope": "GO_only",
+        "semantic_subset_policy": "shared_across_resnik_and_lin",
+        "inference_status": "screening_only"
+      }
+    },
+    {
+      "method": "overlap",
+      "verdict": "enriched",
+      "p_value": 0.03482587064676617,
+      "p_value_formatted": "3.48e-02",
+      "q_value": null,
+      "q_value_formatted": "NA",
+      "effect_size": 4.95,
+      "s_obs": 9.0,
+      "runtime": 0.5052587985992432,
+      "metadata": {
+        "R": 200,
+        "test_type": "empirical_permutation",
+        "A_size": 25,
+        "B_size": 6706,
+        "U_size": 40273,
+        "intersection_size": 9,
+        "enriched_terms": [
+          "GO:0050764",
+          "GO:1904724",
+          "GO:0045296",
+          "GO:0045171",
+          "GO:0042582",
+          "GO:0035580",
+          "GO:0042581",
+          "GO:0043312",
+          "GO:1900026"
+        ],
+        "mu": 4.05,
+        "sd": 1.9968568265976527,
+        "component_tests": "skipped"
+      }
+    },
+    {
+      "method": "resnik_bma",
+      "verdict": "screening_not_sig",
+      "p_value": 0.3137254901960784,
+      "p_value_formatted": "3.14e-01",
+      "q_value": null,
+      "q_value_formatted": "NA",
+      "effect_size": 0.039203050201025325,
+      "s_obs": 0.75663221849331,
+      "runtime": 0.5651509761810303,
+      "metadata": {
+        "R": 50,
+        "test_type": "empirical_permutation",
+        "A_size": 25,
+        "B_size": 6706,
+        "U_size": 40273,
+        "intersection_size": 9,
+        "enriched_terms": [
+          "GO:0050764",
+          "GO:1904724",
+          "GO:0045296",
+          "GO:0045171",
+          "GO:0042582",
+          "GO:0035580",
+          "GO:0042581",
+          "GO:0043312",
+          "GO:1900026"
+        ],
+        "mu": 0.7174291682922846,
+        "sd": 0.10545604449120134,
+        "component_tests": "skipped",
+        "semantic_term_cap": 100,
+        "B_GO_size_evaluated": 100,
+        "semantic_subset_sha256": "ad337ea624d681181be371690ab1f7f4376e27af26c07e5154f674c395bf3145",
+        "semantic_null_model": "namespace_depth_ic_matched",
+        "semantic_scope": "GO_only",
+        "semantic_subset_policy": "shared_across_resnik_and_lin",
+        "inference_status": "screening_only"
+      }
+    }
+  ],
+  "dataset_sizes": {
+    "A": 25,
+    "B": 6706,
+    "U": 40273
+  },
+  "enriched_terms_reference": {
+    "go_terms": [
+      {
+        "id": "GO:0035580",
+        "name": "specific granule lumen",
+        "url": "http://amigo.geneontology.org/amigo/term/GO:0035580"
+      },
+      {
+        "id": "GO:0042581",
+        "name": "specific granule",
+        "url": "http://amigo.geneontology.org/amigo/term/GO:0042581"
+      },
+      {
+        "id": "GO:0042582",
+        "name": "azurophil granule",
+        "url": "http://amigo.geneontology.org/amigo/term/GO:0042582"
+      },
+      {
+        "id": "GO:0043312",
+        "name": "neutrophil degranulation",
+        "url": "http://amigo.geneontology.org/amigo/term/GO:0043312"
+      },
+      {
+        "id": "GO:0045171",
+        "name": "intercellular bridge",
+        "url": "http://amigo.geneontology.org/amigo/term/GO:0045171"
+      },
+      {
+        "id": "GO:0045296",
+        "name": "cadherin binding",
+        "url": "http://amigo.geneontology.org/amigo/term/GO:0045296"
+      },
+      {
+        "id": "GO:0050764",
+        "name": "regulation of phagocytosis",
+        "url": "http://amigo.geneontology.org/amigo/term/GO:0050764"
+      },
+      {
+        "id": "GO:1900026",
+        "name": "positive regulation of substrate adhesion-dependent cell spreading",
+        "url": "http://amigo.geneontology.org/amigo/term/GO:1900026"
+      },
+      {
+        "id": "GO:1904724",
+        "name": "tertiary granule lumen",
+        "url": "http://amigo.geneontology.org/amigo/term/GO:1904724"
+      }
+    ]
+  }
+}

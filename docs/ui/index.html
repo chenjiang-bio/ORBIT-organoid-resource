@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Potential biomarker prediction · OCSP min</title>
+  <style>
+    :root {
+      --ink: #1a1a1a;
+      --muted: #666;
+      --line: #d0d0d0;
+      --bg: #f5f5f5;
+      --card: #fff;
+      --teal: #0d9488;
+      --teal-dark: #0f766e;
+      --green: #16a34a;
+      --red: #dc2626;
+      --orange: #ea580c;
+      --tab-active: #e5e5e5;
+      --gold: #ca8a04;
+      --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.45;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+
+    .tabs {
+      display: flex;
+      border: 1px solid var(--line);
+      border-radius: 4px 4px 0 0;
+      overflow: hidden;
+      background: #fff;
+    }
+    .tab {
+      flex: 1;
+      padding: 0.85rem 1rem;
+      text-align: center;
+      font-weight: 600;
+      border: none;
+      background: #fff;
+      cursor: pointer;
+      border-right: 1px solid var(--line);
+    }
+    .tab:last-child { border-right: none; }
+    .tab.active { background: var(--tab-active); }
+    .tab:disabled { color: #999; cursor: default; }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-top: none;
+      padding: 1.25rem 1.35rem 1.5rem;
+    }
+
+    .mode-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .mode-tabs {
+      display: flex;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      overflow: hidden;
+      background: #fff;
+      flex: 1 1 280px;
+    }
+    .mode-tab {
+      flex: 1;
+      padding: 0.7rem 0.5rem;
+      text-align: center;
+      font-weight: 700;
+      border: none;
+      background: #fff;
+      cursor: pointer;
+      border-right: 1px solid var(--line);
+      font-size: 0.95rem;
+    }
+    .mode-tab:last-child { border-right: none; }
+    .mode-tab.active {
+      background: var(--teal);
+      color: #fff;
+    }
+    .btn-example {
+      background: #fff;
+      border: 1px solid var(--teal);
+      color: var(--teal);
+      border-radius: 4px;
+      padding: 0.55rem 0.95rem;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-example:hover { background: #ecfdf5; }
+
+    .mode-panel { display: none; }
+    .mode-panel.active { display: block; }
+
+    .section {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 1rem 1.1rem 1.15rem;
+      margin-bottom: 1rem;
+      background: #fff;
+    }
+    .section-head {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      margin: 0 0 0.9rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+      flex-wrap: wrap;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border-radius: 3px;
+      color: #fff;
+    }
+    .badge.req { background: var(--red); }
+    .badge.opt { background: var(--orange); }
+
+    .row {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 0.75rem 1rem;
+      align-items: start;
+      margin-bottom: 0.95rem;
+    }
+    .row > label.field-label {
+      font-weight: 600;
+      padding-top: 0.2rem;
+    }
+    .radios { display: flex; flex-wrap: wrap; gap: 0.85rem 1.25rem; }
+    .radios label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .hint { font-size: 0.85rem; color: var(--muted); margin: 0.25rem 0 0; }
+    .file-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    .browse {
+      background: var(--teal);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 0.4rem 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .browse:hover { background: var(--teal-dark); }
+    .file-name { color: var(--muted); font-size: 0.9rem; }
+    .fmt { color: var(--red); font-size: 0.85rem; margin: 0.25rem 0 0; }
+    .chip-links { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.35rem; }
+    .chip-links a { font-size: 0.82rem; color: var(--teal-dark); font-weight: 600; }
+
+    textarea, select, input[type="text"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 0.55rem 0.65rem;
+      font: inherit;
+      background: #fff;
+    }
+    textarea { min-height: 140px; resize: vertical; font-family: ui-monospace, Menlo, monospace; font-size: 0.85rem; }
+    select:disabled { background: #f3f4f6; color: #999; }
+
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .vs {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #fef3c7;
+      color: var(--gold);
+      font-weight: 800;
+      font-size: 0.75rem;
+      border-radius: 999px;
+      padding: 0.15rem 0.45rem;
+    }
+    .cmp-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    /* Tissue = organ_system (green) + organ (white), linked like legacy UI */
+    .tissue-combo {
+      display: flex;
+      align-items: stretch;
+      border: 1px solid #c5c5c5;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fff;
+      max-width: 100%;
+    }
+    .tissue-combo select {
+      margin: 0;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      height: auto;
+      min-height: 2.35rem;
+    }
+    .tissue-combo select.tissue-sys {
+      flex: 0 1 38%;
+      min-width: 7.5rem;
+      max-width: 12rem;
+      background: #6b8f7a;
+      color: #fff;
+      font-weight: 600;
+      padding: 0.45rem 1.6rem 0.45rem 0.65rem;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23ffffff' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.55rem center;
+    }
+    .tissue-combo select.tissue-sys:focus {
+      outline: 2px solid #4d6f5c;
+      outline-offset: -2px;
+    }
+    .tissue-combo select.tissue-organ {
+      flex: 1 1 auto;
+      background: #fff;
+      color: var(--ink);
+      border-left: 1px solid #d8d8d8;
+      padding: 0.45rem 1.6rem 0.45rem 0.7rem;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23666666' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.55rem center;
+    }
+    .tissue-combo select.tissue-organ:focus {
+      outline: 2px solid var(--teal);
+      outline-offset: -2px;
+    }
+    .tissue-stack { display: grid; gap: 0.55rem; }
+
+    @media (max-width: 640px) {
+      .row { grid-template-columns: 1fr; }
+      .split, .cmp-row { grid-template-columns: 1fr; }
+      .tissue-combo { flex-direction: column; }
+      .tissue-combo select.tissue-sys {
+        max-width: none;
+        border-bottom: 1px solid #d8d8d8;
+      }
+      .tissue-combo select.tissue-organ { border-left: none; }
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      margin-top: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .submit {
+      background: var(--teal);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 0.65rem 1.4rem;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .submit:hover { background: var(--teal-dark); }
+    .ghost {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 0.55rem 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .result {
+      margin-top: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #fff;
+      display: none;
+    }
+    .result.show { display: block; }
+    .result h3 {
+      margin: 0;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--line);
+      font-size: 1rem;
+    }
+    .result pre {
+      margin: 0;
+      padding: 1rem;
+      overflow: auto;
+      max-height: 420px;
+      font-size: 0.78rem;
+      background: #fafafa;
+    }
+    table.rank { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    table.rank th, table.rank td {
+      border-bottom: 1px solid var(--line);
+      padding: 0.45rem 0.65rem;
+      text-align: left;
+    }
+    table.rank th { background: #f3f4f6; }
+    .v-en { color: #15803d; font-weight: 700; }
+    .v-ns { color: #a16207; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="tabs">
+      <button class="tab active" type="button">Potential biomarker prediction</button>
+      <button class="tab" type="button" disabled>Blast</button>
+    </div>
+
+    <div class="panel">
+
+      <!-- Input mode = 3 tabs -->
+      <div class="mode-bar">
+        <div class="mode-tabs" role="tablist">
+          <button class="mode-tab active" type="button" data-mode="expression">Expression</button>
+          <button class="mode-tab" type="button" data-mode="genes">Gene list</button>
+          <button class="mode-tab" type="button" data-mode="sequence">Sequence</button>
+        </div>
+        <button class="btn-example" id="btn-load-example" type="button">Load example</button>
+      </div>
+
+      <section class="section" style="margin-top:0">
+        <h2 class="section-head">Analysis methods <span class="badge req">Required</span></h2>
+        <div class="row">
+          <label class="field-label">Methods</label>
+          <div class="radios">
+            <label><input type="radio" name="analysis_methods" value="primary" /><span>Primary only (Hypergeometric)</span></label>
+            <label><input type="radio" name="analysis_methods" value="all" checked /><span>All 5 methods</span></label>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== EXPRESSION ========== -->
+      <div class="mode-panel active" data-mode="expression">
+        <section class="section">
+          <h2 class="section-head">Basic info <span class="badge req">Required</span></h2>
+
+          <div class="row">
+            <label class="field-label">Organism</label>
+            <div class="radios">
+              <label><input type="radio" name="species_expression" value="hsa" checked /><span>Homo sapiens</span></label>
+              <label><input type="radio" name="species_expression" value="mmu" /><span>Mus musculus</span></label>
+            </div>
+          </div>
+
+          <div class="row">
+            <label class="field-label">Category</label>
+            <select class="js-category" data-scope="expression" data-fkey="category"></select>
+          </div>
+          <div class="row js-row-condition" data-scope="expression">
+            <label class="field-label">Condition</label>
+            <select class="js-condition" data-scope="expression" data-fkey="condition" disabled></select>
+          </div>
+          <div class="row js-row-factor" data-scope="expression">
+            <label class="field-label">Factor</label>
+            <select class="js-factor" data-scope="expression" data-fkey="factor" disabled></select>
+          </div>
+
+          <div class="row">
+            <label class="field-label">Upload matrix</label>
+            <div>
+              <div class="file-row">
+                <button class="browse" type="button" data-pick="matrix">Browse</button>
+                <input type="file" id="matrix-file" accept=".tsv,.txt" hidden />
+                <span class="file-name" id="matrix-name">Please select matrix.tsv</span>
+              </div>
+              <div class="chip-links">
+                <a href="samples/matrix.tsv" download>Download sample matrix.tsv</a>
+              </div>
+              <p class="fmt">Format: *.tsv (gene × samples)</p>
+            </div>
+          </div>
+          <div class="row">
+            <label class="field-label">Upload groups</label>
+            <div>
+              <div class="file-row">
+                <button class="browse" type="button" data-pick="groups">Browse</button>
+                <input type="file" id="groups-file" accept=".tsv,.txt" hidden />
+                <span class="file-name" id="groups-name">Please select groups.tsv</span>
+              </div>
+              <div class="chip-links">
+                <a href="samples/groups.tsv" download>Download sample groups.tsv</a>
+              </div>
+              <p class="fmt">sample_id, group (case|control)</p>
+            </div>
+          </div>
+          <div class="row">
+            <label class="field-label">Or GSE</label>
+            <div class="split">
+              <input type="text" id="gse-id" placeholder="GSE ID (alt)" />
+              <input type="text" id="comparison" placeholder="comparison name" />
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-head">Filter <span class="badge opt">optional</span></h2>
+          <div data-filter-extra="expression"></div>
+        </section>
+      </div>
+
+      <!-- ========== GENES ========== -->
+      <div class="mode-panel" data-mode="genes">
+        <section class="section">
+          <h2 class="section-head">Basic info <span class="badge req">Required</span></h2>
+
+          <div class="row">
+            <label class="field-label">Organism</label>
+            <div class="radios">
+              <label><input type="radio" name="species_genes" value="hsa" checked /><span>Homo sapiens</span></label>
+              <label><input type="radio" name="species_genes" value="mmu" /><span>Mus musculus</span></label>
+            </div>
+          </div>
+
+          <div class="row">
+            <label class="field-label">Category</label>
+            <select class="js-category" data-scope="genes" data-fkey="category"></select>
+          </div>
+          <div class="row js-row-condition" data-scope="genes">
+            <label class="field-label">Condition</label>
+            <select class="js-condition" data-scope="genes" data-fkey="condition" disabled></select>
+          </div>
+          <div class="row js-row-factor" data-scope="genes">
+            <label class="field-label">Factor</label>
+            <select class="js-factor" data-scope="genes" data-fkey="factor" disabled></select>
+          </div>
+
+          <div class="row">
+            <label class="field-label">Enter genes</label>
+            <div>
+              <textarea id="genes-text" placeholder="One gene per line"></textarea>
+              <div class="chip-links">
+                <a href="samples/genes.txt" download>Download sample genes.txt</a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-head">Filter <span class="badge opt">optional</span></h2>
+          <div data-filter-extra="genes"></div>
+        </section>
+      </div>
+
+      <!-- ========== SEQUENCE ========== -->
+      <div class="mode-panel" data-mode="sequence">
+        <section class="section">
+          <h2 class="section-head">Basic info <span class="badge req">Required</span></h2>
+
+          <div class="row">
+            <label class="field-label">Organism</label>
+            <div class="radios">
+              <label><input type="radio" name="species_sequence" value="hsa" checked /><span>Homo sapiens</span></label>
+              <label><input type="radio" name="species_sequence" value="mmu" /><span>Mus musculus</span></label>
+            </div>
+          </div>
+
+          <div class="row">
+            <label class="field-label">Upload Sequence</label>
+            <div>
+              <div class="file-row">
+                <button class="browse" type="button" data-pick="fasta">Browse</button>
+                <input type="file" id="fasta-file" accept=".fa,.fas,.fasta,.txt" hidden />
+                <span class="file-name" id="fasta-name">Please select a fasta file</span>
+              </div>
+              <p class="fmt">Format: *.fa, *.fas, *.fasta</p>
+            </div>
+          </div>
+          <div class="row">
+            <label class="field-label">Enter Sequence</label>
+            <textarea id="fasta-text" placeholder=">seq1&#10;MKT..."></textarea>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-head">Filter <span class="badge opt">optional</span></h2>
+          <div class="row">
+            <label class="field-label">Category</label>
+            <select class="js-category" data-scope="sequence" data-fkey="category"></select>
+          </div>
+          <div class="row js-row-condition" data-scope="sequence">
+            <label class="field-label">Condition</label>
+            <select class="js-condition" data-scope="sequence" data-fkey="condition" disabled></select>
+          </div>
+          <div class="row js-row-factor" data-scope="sequence">
+            <label class="field-label">Factor</label>
+            <select class="js-factor" data-scope="sequence" data-fkey="factor" disabled></select>
+          </div>
+
+          <div data-filter-extra="sequence"></div>
+        </section>
+      </div>
+
+      <div class="actions">
+        <button class="submit" id="btn-run" type="button">Run analysis</button>
+      </div>
+    </div>
+  </div>
+
+  <template id="tpl-filter-extra">
+    <div class="row">
+      <label class="field-label">Source</label>
+      <div class="cmp-row">
+        <select class="js-source-cond" data-scope="__SCOPE__" data-fkey="source_condition"></select>
+        <span class="vs">/</span>
+        <select class="js-source-ctrl" data-scope="__SCOPE__" data-fkey="source_control"></select>
+      </div>
+    </div>
+    <div class="row">
+      <label class="field-label">Tissue</label>
+      <div class="tissue-stack">
+        <div class="tissue-combo" title="condition">
+          <select class="tissue-sys js-orgsys-cond" data-scope="__SCOPE__" data-fkey="organ_system_condition"></select>
+          <select class="tissue-organ js-organ-cond" data-scope="__SCOPE__" data-fkey="organ_condition"></select>
+        </div>
+        <div class="tissue-combo" title="control">
+          <select class="tissue-sys js-orgsys-ctrl" data-scope="__SCOPE__" data-fkey="organ_system_control"></select>
+          <select class="tissue-organ js-organ-ctrl" data-scope="__SCOPE__" data-fkey="organ_control"></select>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <label class="field-label">Additional condition</label>
+      <select class="js-additional" data-scope="__SCOPE__" data-fkey="additional_condition"></select>
+    </div>
+    <div class="row">
+      <label class="field-label">Comparison</label>
+      <div class="cmp-row">
+        <select class="js-cmp-treat" data-scope="__SCOPE__" data-fkey="comparison_condition"></select>
+        <span class="vs">VS</span>
+        <select class="js-cmp-ctrl" data-scope="__SCOPE__" data-fkey="comparison_control"></select>
+      </div>
+    </div>
+    <div class="row">
+      <label class="field-label">Cell type</label>
+      <select class="js-cell-type" data-scope="__SCOPE__" data-fkey="cell_type"></select>
+    </div>
+    <div class="row">
+      <label class="field-label">Time</label>
+      <div class="cmp-row">
+        <select class="js-time-cond" data-scope="__SCOPE__" data-fkey="time_condition"></select>
+        <span class="vs">/</span>
+        <select class="js-time-ctrl" data-scope="__SCOPE__" data-fkey="time_control"></select>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    const $ = (s, el = document) => el.querySelector(s);
+    const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+
+    const state = {
+      mode: "expression",
+      files: { matrix: null, groups: null, fasta: null },
+      filterIndexBySpecies: { hsa: [], mmu: [] },
+    };
+
+    function speciesForScope(scope) {
+      return $(`input[name="species_${scope}"]:checked`)?.value || "hsa";
+    }
+
+    function rowsForScope(scope) {
+      const sp = speciesForScope(scope);
+      return state.filterIndexBySpecies[sp] || state.filterIndexBySpecies.hsa || [];
+    }
+
+    const LIST_KEYS = new Set(["category", "organ_system_condition", "organ_system_control"]);
+    const FILTER_KEYS = [
+      "category",
+      "condition",
+      "factor",
+      "source_condition",
+      "source_control",
+      "organ_condition",
+      "organ_control",
+      "organ_system_condition",
+      "organ_system_control",
+      "additional_condition",
+      "comparison_condition",
+      "comparison_control",
+      "cell_type",
+      "time_condition",
+      "time_control",
+    ];
+
+    // mount shared optional filters into each tab
+    $$("[data-filter-extra]").forEach((host) => {
+      const scope = host.dataset.filterExtra;
+      const html = $("#tpl-filter-extra").innerHTML.replaceAll("__SCOPE__", scope);
+      host.innerHTML = html;
+    });
+
+    function fillSelect(sel, values, placeholder, keepValue) {
+      if (!sel) return;
+      const prev = keepValue != null ? keepValue : sel.value;
+      sel.innerHTML = "";
+      const opt0 = document.createElement("option");
+      opt0.value = "";
+      opt0.textContent = placeholder;
+      sel.appendChild(opt0);
+      for (const v of values || []) {
+        const o = document.createElement("option");
+        o.value = v;
+        o.textContent = v;
+        sel.appendChild(o);
+      }
+      if (prev && [...sel.options].some((o) => o.value === prev)) sel.value = prev;
+    }
+
+    function scopeEl(cls, scope) {
+      return $(`.${cls}[data-scope="${scope}"]`);
+    }
+
+    function normEq(a, b) {
+      return String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+    }
+
+    function asList(v) {
+      if (v == null || v === "") return [];
+      if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
+      return [String(v).trim()].filter(Boolean);
+    }
+
+    function fieldMatch(recVal, want, isList) {
+      if (!want) return true;
+      if (isList) return asList(recVal).some((x) => normEq(x, want));
+      return normEq(recVal, want);
+    }
+
+    function readFacetFilters(scope) {
+      const out = {};
+      for (const key of FILTER_KEYS) {
+        const el = $(`[data-scope="${scope}"][data-fkey="${key}"]`);
+        out[key] = el ? (el.value || "") : "";
+      }
+      return out;
+    }
+
+    function recordMatches(rec, filters, skipKey) {
+      // Product UI hard-locks model to Organoid.
+      if (!normEq(rec.model_condition || "", "Organoid")) return false;
+      for (const key of FILTER_KEYS) {
+        if (key === skipKey) continue;
+        const want = filters[key];
+        if (!want) continue;
+        if (!fieldMatch(rec[key], want, LIST_KEYS.has(key))) return false;
+      }
+      return true;
+    }
+
+    function uniqueFieldValues(rows, key) {
+      const set = new Set();
+      for (const rec of rows) {
+        if (LIST_KEYS.has(key)) {
+          for (const v of asList(rec[key])) set.add(v);
+        } else {
+          const v = rec[key];
+          if (v != null && String(v).trim()) set.add(String(v).trim());
+        }
+      }
+      return [...set].sort((a, b) => a.localeCompare(b));
+    }
+
+    /** Faceted cascade: every filter option list is constrained by all other selections.
+     *  If a field has exactly one remaining option, auto-fill it and re-cascade. */
+    function refreshCascade(scope, changed, depth = 0) {
+      const filters = readFacetFilters(scope);
+      if (changed === "category") {
+        // Reset dependent picks when category changes (keep category itself).
+        for (const key of FILTER_KEYS) {
+          if (key === "category") continue;
+          const el = $(`[data-scope="${scope}"][data-fkey="${key}"]`);
+          if (el) el.value = "";
+          filters[key] = "";
+        }
+      }
+
+      const placeholders = {
+        category: "Please select category",
+        condition: "condition (optional)",
+        factor: "factor (optional)",
+        source_condition: "source_condition",
+        source_control: "source_control",
+        organ_condition: "Organ",
+        organ_control: "Organ",
+        organ_system_condition: "organ_system",
+        organ_system_control: "organ_system",
+        additional_condition: "additional_condition",
+        comparison_condition: "comparison_condition",
+        comparison_control: "comparison_control",
+        cell_type: "cell_type",
+        time_condition: "time_condition",
+        time_control: "time_control",
+      };
+
+      const optionsByKey = {};
+      for (const key of FILTER_KEYS) {
+        const el = $(`[data-scope="${scope}"][data-fkey="${key}"]`);
+        if (!el) continue;
+        let rows;
+        const indexRows = rowsForScope(scope);
+        if (key === "category") {
+          rows = indexRows.filter((r) => normEq(r.model_condition || "", "Organoid"));
+        } else {
+          rows = indexRows.filter((r) => recordMatches(r, filters, key));
+        }
+        const values = uniqueFieldValues(rows, key);
+        optionsByKey[key] = values;
+        const keep = changed === "category" && key !== "category" ? "" : (filters[key] || "");
+        fillSelect(el, values, placeholders[key] || key, keep);
+        if (key === "condition" || key === "factor") {
+          el.disabled = !filters.category;
+        }
+      }
+
+      // Disease convenience default
+      if (changed === "category" && filters.category === "Disease") {
+        const condEl = $(`[data-scope="${scope}"][data-fkey="condition"]`);
+        if (condEl && [...condEl.options].some((o) => o.value === "Colorectal Cancer")) {
+          condEl.value = "Colorectal Cancer";
+          refreshCascade(scope, "condition", depth + 1);
+          return;
+        }
+      }
+
+      // Auto-fill singleton options (empty fields with exactly one choice).
+      let autoFilled = false;
+      if (depth < 10) {
+        for (const key of FILTER_KEYS) {
+          if (key === "category") continue; // never force-pick category
+          const el = $(`[data-scope="${scope}"][data-fkey="${key}"]`);
+          if (!el || el.disabled) continue;
+          const values = optionsByKey[key] || [];
+          if (!el.value && values.length === 1) {
+            el.value = values[0];
+            autoFilled = true;
+          }
+        }
+      }
+      if (autoFilled) {
+        refreshCascade(scope, "__autofill__", depth + 1);
+        return;
+      }
+    }
+
+    function initScopeSelects(scope, { defaultDisease = false } = {}) {
+      FILTER_KEYS.forEach((key) => {
+        const el = $(`[data-scope="${scope}"][data-fkey="${key}"]`);
+        if (!el || el.dataset.boundCascade) return;
+        el.dataset.boundCascade = "1";
+        el.addEventListener("change", () => refreshCascade(scope, key));
+      });
+      const catSel = scopeEl("js-category", scope);
+      if (defaultDisease) catSel.value = "Disease";
+      refreshCascade(scope, defaultDisease ? "category" : "");
+    }
+
+    function setMode(mode) {
+      state.mode = mode;
+      $$(".mode-tab").forEach((t) => t.classList.toggle("active", t.dataset.mode === mode));
+      $$(".mode-panel").forEach((p) => p.classList.toggle("active", p.dataset.mode === mode));
+    }
+
+    $$(".mode-tab").forEach((btn) => {
+      btn.addEventListener("click", () => setMode(btn.dataset.mode));
+    });
+
+    ["expression", "genes", "sequence"].forEach((scope) => {
+      $$(`input[name="species_${scope}"]`).forEach((radio) => {
+        radio.addEventListener("change", () => refreshCascade(scope, "category"));
+      });
+    });
+
+    $$(".browse").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const map = { matrix: "matrix-file", groups: "groups-file", fasta: "fasta-file" };
+        $(`#${map[btn.dataset.pick]}`).click();
+      });
+    });
+
+    function bindFile(inputId, nameId, key) {
+      $(`#${inputId}`).addEventListener("change", (e) => {
+        const f = e.target.files && e.target.files[0];
+        state.files[key] = f || null;
+        $(`#${nameId}`).textContent = f ? f.name : $(`#${nameId}`).dataset.placeholder;
+      });
+    }
+    $("#matrix-name").dataset.placeholder = "Please select matrix.tsv";
+    $("#groups-name").dataset.placeholder = "Please select groups.tsv";
+    $("#fasta-name").dataset.placeholder = "Please select a fasta file";
+    bindFile("matrix-file", "matrix-name", "matrix");
+    bindFile("groups-file", "groups-name", "groups");
+    bindFile("fasta-file", "fasta-name", "fasta");
+
+    async function loadText(path) {
+      const res = await fetch(path);
+      if (!res.ok) throw new Error(`Cannot load ${path}`);
+      return res.text();
+    }
+
+    async function loadExpressionSamples() {
+      const [m, g] = await Promise.all([
+        loadText("samples/matrix.tsv"),
+        loadText("samples/groups.tsv"),
+      ]);
+      state.files.matrix = new File([m], "matrix.tsv", { type: "text/tab-separated-values" });
+      state.files.groups = new File([g], "groups.tsv", { type: "text/tab-separated-values" });
+      $("#matrix-name").textContent = "matrix.tsv (example)";
+      $("#groups-name").textContent = "groups.tsv (example)";
+      $("#gse-id").value = "";
+      $("#comparison").value = "";
+    }
+
+    async function loadGeneSamples() {
+      try {
+        $("#genes-text").value = (await loadText("samples/genes.txt")).trim();
+      } catch {
+        $("#genes-text").value = "LEF1\nCD44\nLGR5\nAXIN2";
+      }
+    }
+
+    async function loadSequenceSamples() {
+      const text = await loadText("samples/example.fasta");
+      $("#fasta-text").value = text.trim();
+      state.files.fasta = new File([text], "example.fasta", { type: "text/plain" });
+      $("#fasta-name").textContent = "example.fasta (example)";
+    }
+
+    function applyExampleFilters(scope) {
+      const species = $(`input[name="species_${scope}"][value="hsa"]`);
+      if (species) species.checked = true;
+      const cat = $(`[data-scope="${scope}"][data-fkey="category"]`);
+      if (cat) {
+        cat.value = "Disease";
+        refreshCascade(scope, "category");
+      }
+      const cond = $(`[data-scope="${scope}"][data-fkey="condition"]`);
+      if (cond && [...cond.options].some((o) => o.value === "Colorectal Cancer")) {
+        cond.value = "Colorectal Cancer";
+        refreshCascade(scope, "condition");
+      }
+    }
+
+    async function loadExample() {
+      const mode = state.mode;
+      applyExampleFilters(mode);
+      try {
+        if (mode === "expression") await loadExpressionSamples();
+        else if (mode === "genes") await loadGeneSamples();
+        else await loadSequenceSamples();
+      } catch (e) {
+        alert(`Failed to load example: ${e.message || e}`);
+      }
+    }
+
+    function resultPageUrl(methods) {
+      return methods === "primary" ? "result.html?methods=primary" : "result.html";
+    }
+
+    function runAnalysis() {
+      const methods = ($(`input[name="analysis_methods"]:checked`) || {}).value || "all";
+      location.href = resultPageUrl(methods);
+    }
+
+    $("#btn-run").addEventListener("click", runAnalysis);
+    $("#btn-load-example").addEventListener("click", () => loadExample());
+
+    (async () => {
+      const raw = await (await fetch("filter_index.json")).json();
+      state.filterIndexBySpecies = Array.isArray(raw)
+        ? { hsa: raw, mmu: [] }
+        : { hsa: raw.hsa || [], mmu: raw.mmu || [] };
+      initScopeSelects("expression", { defaultDisease: false });
+      initScopeSelects("genes", { defaultDisease: false });
+      initScopeSelects("sequence", { defaultDisease: false });
+      setMode("expression");
+    })();
+  </script>
+</body>
+</html>

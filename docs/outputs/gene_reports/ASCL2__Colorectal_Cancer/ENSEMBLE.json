@@ -1,0 +1,256 @@
+{
+  "metadata": {
+    "title": "Ensemble Enrichment Analysis Report",
+    "generated": "2026-07-25 11:52:34",
+    "type": "ensemble_report",
+    "strategy": "primary_hypergeometric_only"
+  },
+  "config": {
+    "condition": "Colorectal Cancer",
+    "gene_name": "ASCL2",
+    "species": "hsa",
+    "ensemble_methods": [
+      "hypergeometric",
+      "jaccard",
+      "overlap",
+      "resnik_bma",
+      "lin_bma"
+    ],
+    "alpha": 0.05,
+    "seed": 42
+  },
+  "ensemble_result": {
+    "verdict": "not_sig",
+    "confidence": "N/A",
+    "consensus_score": 0.0,
+    "agreement": 0,
+    "total_methods": 5,
+    "primary_test": "exact_hypergeometric",
+    "primary_p_value": 0.07455563816975322,
+    "primary_q_value": null,
+    "agreement_tier": "N/A",
+    "agreement_tier_note": "Descriptive; not a calibrated probability.",
+    "multiple_testing_note": "Apply BH across candidate hypotheses using primary p-values.",
+    "combined_p_value": 0.07455563816975322,
+    "combined_p_value_formatted": "7.46e-02",
+    "combined_p_value_go": null,
+    "combined_p_value_go_formatted": "NA",
+    "combined_p_value_kegg": null,
+    "combined_p_value_kegg_formatted": "NA"
+  },
+  "individual_methods": [
+    {
+      "method": "hypergeometric",
+      "verdict": "not_sig",
+      "p_value": 0.07455563816975322,
+      "p_value_formatted": "7.46e-02",
+      "q_value": null,
+      "q_value_formatted": "NA",
+      "effect_size": 3.1701884637350086,
+      "s_obs": 7.0,
+      "runtime": 0.44016408920288086,
+      "metadata": {
+        "R": 0,
+        "test_type": "exact_hypergeometric",
+        "A_size": 23,
+        "B_size": 6706,
+        "U_size": 40273,
+        "intersection_size": 7,
+        "enriched_terms": [
+          "GO:0035019",
+          "GO:0001666",
+          "GO:0050767",
+          "GO:0090575",
+          "GO:0001227",
+          "GO:0001890",
+          "GO:0070888"
+        ],
+        "mu": 3.8298115362649914,
+        "sd": 0.0,
+        "component_tests": "skipped"
+      }
+    },
+    {
+      "method": "jaccard",
+      "verdict": "not_sig",
+      "p_value": 0.06965174129353234,
+      "p_value_formatted": "6.97e-02",
+      "q_value": null,
+      "q_value_formatted": "NA",
+      "effect_size": 0.00047326702171661655,
+      "s_obs": 0.0010413567390657541,
+      "runtime": 0.5106801986694336,
+      "metadata": {
+        "R": 200,
+        "test_type": "empirical_permutation",
+        "A_size": 23,
+        "B_size": 6706,
+        "U_size": 40273,
+        "intersection_size": 7,
+        "enriched_terms": [
+          "GO:0035019",
+          "GO:0001666",
+          "GO:0050767",
+          "GO:0090575",
+          "GO:0001227",
+          "GO:0001890",
+          "GO:0070888"
+        ],
+        "mu": 0.0005680897173491376,
+        "sd": 0.00027498817034527645,
+        "component_tests": "skipped"
+      }
+    },
+    {
+      "method": "lin_bma",
+      "verdict": "screening_not_sig",
+      "p_value": 0.5490196078431373,
+      "p_value_formatted": "5.49e-01",
+      "q_value": null,
+      "q_value_formatted": "NA",
+      "effect_size": 0.001235856774595867,
+      "s_obs": 0.20901027725788832,
+      "runtime": 0.21860384941101074,
+      "metadata": {
+        "R": 50,
+        "test_type": "empirical_permutation",
+        "A_size": 23,
+        "B_size": 6706,
+        "U_size": 40273,
+        "intersection_size": 7,
+        "enriched_terms": [
+          "GO:0035019",
+          "GO:0001666",
+          "GO:0050767",
+          "GO:0090575",
+          "GO:0001227",
+          "GO:0001890",
+          "GO:0070888"
+        ],
+        "mu": 0.20777442048329245,
+        "sd": 0.048732600641135125,
+        "component_tests": "skipped",
+        "semantic_term_cap": 100,
+        "B_GO_size_evaluated": 100,
+        "semantic_subset_sha256": "ad337ea624d681181be371690ab1f7f4376e27af26c07e5154f674c395bf3145",
+        "semantic_null_model": "namespace_depth_ic_matched",
+        "semantic_scope": "GO_only",
+        "semantic_subset_policy": "shared_across_resnik_and_lin",
+        "inference_status": "screening_only"
+      }
+    },
+    {
+      "method": "overlap",
+      "verdict": "not_sig",
+      "p_value": 0.06965174129353234,
+      "p_value_formatted": "6.97e-02",
+      "q_value": null,
+      "q_value_formatted": "NA",
+      "effect_size": 3.18,
+      "s_obs": 7.0,
+      "runtime": 0.442568302154541,
+      "metadata": {
+        "R": 200,
+        "test_type": "empirical_permutation",
+        "A_size": 23,
+        "B_size": 6706,
+        "U_size": 40273,
+        "intersection_size": 7,
+        "enriched_terms": [
+          "GO:0035019",
+          "GO:0001666",
+          "GO:0050767",
+          "GO:0090575",
+          "GO:0001227",
+          "GO:0001890",
+          "GO:0070888"
+        ],
+        "mu": 3.82,
+        "sd": 1.8478834830243411,
+        "component_tests": "skipped"
+      }
+    },
+    {
+      "method": "resnik_bma",
+      "verdict": "screening_not_sig",
+      "p_value": 0.5882352941176471,
+      "p_value_formatted": "5.88e-01",
+      "q_value": null,
+      "q_value_formatted": "NA",
+      "effect_size": -0.004915030056151348,
+      "s_obs": 0.7098542991713462,
+      "runtime": 0.5245733261108398,
+      "metadata": {
+        "R": 50,
+        "test_type": "empirical_permutation",
+        "A_size": 23,
+        "B_size": 6706,
+        "U_size": 40273,
+        "intersection_size": 7,
+        "enriched_terms": [
+          "GO:0035019",
+          "GO:0001666",
+          "GO:0050767",
+          "GO:0090575",
+          "GO:0001227",
+          "GO:0001890",
+          "GO:0070888"
+        ],
+        "mu": 0.7147693292274976,
+        "sd": 0.13101450814499913,
+        "component_tests": "skipped",
+        "semantic_term_cap": 100,
+        "B_GO_size_evaluated": 100,
+        "semantic_subset_sha256": "ad337ea624d681181be371690ab1f7f4376e27af26c07e5154f674c395bf3145",
+        "semantic_null_model": "namespace_depth_ic_matched",
+        "semantic_scope": "GO_only",
+        "semantic_subset_policy": "shared_across_resnik_and_lin",
+        "inference_status": "screening_only"
+      }
+    }
+  ],
+  "dataset_sizes": {
+    "A": 23,
+    "B": 6706,
+    "U": 40273
+  },
+  "enriched_terms_reference": {
+    "go_terms": [
+      {
+        "id": "GO:0001227",
+        "name": "DNA-binding transcription repressor activity, RNA polymerase II-specific",
+        "url": "http://amigo.geneontology.org/amigo/term/GO:0001227"
+      },
+      {
+        "id": "GO:0001666",
+        "name": "response to hypoxia",
+        "url": "http://amigo.geneontology.org/amigo/term/GO:0001666"
+      },
+      {
+        "id": "GO:0001890",
+        "name": "placenta development",
+        "url": "http://amigo.geneontology.org/amigo/term/GO:0001890"
+      },
+      {
+        "id": "GO:0035019",
+        "name": "somatic stem cell population maintenance",
+        "url": "http://amigo.geneontology.org/amigo/term/GO:0035019"
+      },
+      {
+        "id": "GO:0050767",
+        "name": "regulation of neurogenesis",
+        "url": "http://amigo.geneontology.org/amigo/term/GO:0050767"
+      },
+      {
+        "id": "GO:0070888",
+        "name": "E-box binding",
+        "url": "http://amigo.geneontology.org/amigo/term/GO:0070888"
+      },
+      {
+        "id": "GO:0090575",
+        "name": "RNA polymerase II transcription regulator complex",
+        "url": "http://amigo.geneontology.org/amigo/term/GO:0090575"
+      }
+    ]
+  }
+}
