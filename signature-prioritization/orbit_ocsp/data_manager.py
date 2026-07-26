@@ -20,14 +20,21 @@ from urllib.parse import urljoin
 import requests
 from tqdm import tqdm
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
+
+#: Version of the *scoring data*, tracked separately from the package version.
+#: The data changes far less often than the code, and each bundle set is tens of
+#: megabytes. Tying the two together meant every code release needed a fresh
+#: upload of identical data, or the download URL pointed at a release tag that
+#: did not exist. Bump this only when the data itself changes.
+DATA_VERSION = "0.1.0"
 
 _PKG_ROOT = Path(__file__).resolve().parents[1]
 SpeciesBundle = Literal["hsa", "mmu", "full"]
 
 DEFAULT_RELEASE_BASE = os.environ.get(
     "ORBIT_OCSP_DATA_BASE_URL",
-    f"https://github.com/chenjiang-bio/ORBIT-organoid-resource/releases/download/ocsp-data-v{__version__}",
+    f"https://github.com/chenjiang-bio/ORBIT-organoid-resource/releases/download/ocsp-data-v{DATA_VERSION}",
 )
 
 SHARED_PATHS: tuple[str, ...] = (
@@ -65,9 +72,9 @@ SPECIES_PATHS: dict[str, tuple[str, ...]] = {
 }
 
 BUNDLE_ARCHIVE = {
-    "hsa": f"orbit-ocsp-data-hsa-{__version__}.tar.gz",
-    "mmu": f"orbit-ocsp-data-mmu-{__version__}.tar.gz",
-    "full": f"orbit-ocsp-data-full-{__version__}.tar.gz",
+    "hsa": f"orbit-ocsp-data-hsa-{DATA_VERSION}.tar.gz",
+    "mmu": f"orbit-ocsp-data-mmu-{DATA_VERSION}.tar.gz",
+    "full": f"orbit-ocsp-data-full-{DATA_VERSION}.tar.gz",
 }
 
 
