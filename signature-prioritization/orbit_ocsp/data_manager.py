@@ -84,7 +84,7 @@ def _strip_data_prefix(relpath: str) -> Path:
 
 
 def _user_data_dir() -> Path:
-    return Path.home() / ".orbit-ocsp" / "data"
+    return Path.home() / ".orbit_ocsp" / "data"
 
 
 def _env_data_dir() -> Path | None:
@@ -241,7 +241,12 @@ def download_data(
     force: bool = False,
 ) -> dict:
     """Download and extract an orbit-ocsp data bundle."""
-    dest = (dest or _user_data_dir()).expanduser().resolve()
+    # Download into the directory the rest of the package will actually read.
+    # ``ORBIT_OCSP_DATA`` takes precedence in ``data_root()``, so ignoring it here
+    # made the download land in the home directory while validation looked at the
+    # environment variable's path — reporting success, or "already_present", for
+    # a directory the tool never uses.
+    dest = (dest or _env_data_dir() or _user_data_dir()).expanduser().resolve()
     archive_name = BUNDLE_ARCHIVE[species]
     base = (base_url or DEFAULT_RELEASE_BASE).rstrip("/") + "/"
     url = urljoin(base, archive_name)

@@ -23,6 +23,28 @@ release build now resolves this automatically:
   tarball names) still read 0.3.4 while the released package declared 0.1.0, so
   `download-data` requested a release tag that does not exist. The build now
   forces them to match and fails if they diverge.
+- **Fixed**: `download-data` wrote to the wrong directory. `data_root()` gives
+  `ORBIT_OCSP_DATA` top priority, but the download default ignored it and used
+  the home directory, so the download reported success — or `already_present`
+  from a stale home copy — for a directory the tool never reads, and the
+  validation step immediately after failed with "17 files missing".
+- **Fixed**: the user data directory was `~/.orbit-ocsp/data` while every
+  docstring and `--help` string said `~/.orbit_ocsp/data`. The release rename
+  maps a bare package name onto the hyphenated CLI name, which is right for
+  commands and wrong for a dot-directory. A build guard now rejects the
+  hyphenated form.
+- **Fixed**: `R/run_de.R` was not installed by pip, so expression mode failed
+  for anyone who installed the package rather than running from a checkout —
+  `_DEFAULT_RSCRIPT` resolved to a path that does not exist in site-packages.
+  The script now also ships inside the package (`orbit_ocsp/R/run_de.R`),
+  declared via `[tool.setuptools.package-data]`, and lookup prefers the packaged
+  copy while still falling back to the repo-root copy in a source checkout.
+  A build guard now fails if it is missing.
+- **Fixed**: `pack_data_release.py` printed "Upload to GitHub release:
+  data-v<version>" while the downloader fetches from `ocsp-data-v<version>`.
+  Following that hint would have produced a release whose assets
+  `download-data` could never find. The hint is now derived from the download
+  URL itself, so it cannot drift again.
 - **Fixed**: `README.md` was never copied into the release tree even though
   `pyproject.toml` declares it as the readme, so the wheel shipped an empty
   long description and the published folder had no landing page.

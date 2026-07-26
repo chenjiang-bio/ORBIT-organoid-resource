@@ -3,6 +3,8 @@ include CHANGELOG.md
 include CONTRIBUTING.md
 include LICENSE
 recursive-include orbit_ocsp *.py
+recursive-include orbit_ocsp *.R
+include environment.yml
 recursive-include docs *.md
 graft R
 
