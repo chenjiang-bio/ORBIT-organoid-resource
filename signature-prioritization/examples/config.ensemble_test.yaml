@@ -1,0 +1,33 @@
+# orbit-ocsp-ensemble config — ensemble scoring with optional MoE LLM.
+# Usage:
+#   orbit-ocsp-ensemble --config examples/config.ensemble_test.yaml
+#
+# LLM calls need ORBIT_OCSP_LLM_API_KEY (or llm_api_key) set in the environment.
+# Leave llm_explain: false for a pure statistical run.
+
+A: examples/data/genes/a_terms.json
+species: hsa
+
+condition: "Colorectal Cancer"
+additional_condition: "High Wnt (50%)"
+organ: "Colon"
+model: "Organoid"
+factor: "APC"
+
+stat: "ensemble"
+ensemble_r_values:
+  hypergeometric: 1000
+  jaccard: 1000
+  lin_bma: 50
+  overlap: 1000
+  resnik_bma: 50
+
+R: 1000
+seed: 42
+alpha: 0.05
+
+outdir: out_ensemble_test
+
+# LLM off by default in the shipped example (no secrets in git).
+llm_explain: false
+llm_moe: false

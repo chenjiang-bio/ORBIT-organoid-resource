@@ -69,6 +69,7 @@ class TestSampleDataLayout:
             "expression/matrix.tsv",
             "expression/groups.tsv",
             "genes/genes.txt",
+            "genes/genes_epms.txt",
             "genes/a_terms.json",
             "sequence/native/kofam/1.txt",
             "sequence/native/interproscan/1.tsv",
@@ -82,6 +83,13 @@ class TestSampleDataLayout:
         assert path.is_file(), f"{path} is referenced by the docs but missing"
         assert path.stat().st_size > 0
 
+    def test_example_configs_exist(self):
+        for name in ("config.no_llm.yaml", "config.ensemble_test.yaml"):
+            path = ROOT / "examples" / name
+            assert path.is_file(), f"missing {path}"
+            text = path.read_text()
+            assert "sk-" not in text, f"{name} must not ship API keys"
+
     def test_expression_matrix_and_groups_agree(self):
         import pandas as pd
 
@@ -90,12 +98,26 @@ class TestSampleDataLayout:
         assert matrix.columns[0] == "gene"
         assert {"sample_id", "group"} <= set(groups.columns)
         assert set(groups["group"]) <= {"case", "control"}
-        # every sample in groups must be a matrix column
         assert set(groups["sample_id"]) <= set(matrix.columns[1:])
+        # GSE50760 primary CRC vs normal: symbols only, balanced groups
+        genes = matrix["gene"].astype(str)
+        assert genes.str.fullmatch(r"\d+").sum() == 0
+        assert len(matrix) >= 20
+        assert (groups["group"] == "case").sum() == 18
+        assert (groups["group"] == "control").sum() == 18
+        assert groups["sample_id"].str.startswith("GSM1228").all()
 
-    def test_gene_list_is_one_symbol_per_line(self):
-        genes = (GENES / "genes.txt").read_text().split()
+    @pytest.mark.parametrize(
+        "filename, n_genes",
+        [
+            ("genes.txt", 4),
+            ("genes_epms.txt", 4),
+        ],
+    )
+    def test_gene_list_is_one_symbol_per_line(self, filename, n_genes):
+        genes = (GENES / filename).read_text().split()
         assert genes
+        assert len(genes) == n_genes
         assert all(g == g.strip() and " " not in g for g in genes)
 
     def test_id_map_has_required_column(self):
@@ -134,7 +156,7 @@ class TestExpressionMode:
             "--mode", "expression",
             "--matrix", EXPRESSION / "matrix.tsv",
             "--groups", EXPRESSION / "groups.tsv",
-            "--data-type", "microarray",
+            "--data-type", "rnaseq_count",
             "--species", SPECIES,
             "--condition", CONDITION,
             "--de-backend", "mock",
@@ -148,7 +170,28 @@ class TestExpressionMode:
         assert (outdir / "de_results.tsv").is_file()
         summary = json.loads((outdir / "pipeline_summary.json").read_text())
         assert summary["mode"] == "expression"
+        assert summary["data_type"] == "rnaseq_count"
         assert len(ranked) <= 3
+
+    @needs_scoring_data
+    def test_rnaseq_alias_is_accepted(self, tmp_path):
+        outdir = tmp_path / "expression_alias"
+        proc = run_cli(
+            "--mode", "expression",
+            "--matrix", EXPRESSION / "matrix.tsv",
+            "--groups", EXPRESSION / "groups.tsv",
+            "--data-type", "rnaseq",
+            "--species", SPECIES,
+            "--condition", CONDITION,
+            "--de-backend", "mock",
+            "--padj-max", "1.0",
+            "--abs-log2fc-min", "0.0",
+            "--top-k", "3",
+            "--outdir", outdir,
+        )
+        assert proc.returncode == 0, proc.stderr[-2000:]
+        summary = json.loads((outdir / "pipeline_summary.json").read_text())
+        assert summary["data_type"] == "rnaseq_count"
 
 
 # ---------------------------------------------------------------------------
@@ -162,18 +205,22 @@ class TestGenesMode:
         assert "--condition" in proc.stderr
 
     @needs_scoring_data
-    def test_gene_list_from_file(self, tmp_path):
-        outdir = tmp_path / "genes"
+    @pytest.mark.parametrize(
+        "genes_file",
+        ["genes.txt", "genes_epms.txt"],
+    )
+    def test_gene_list_from_file(self, tmp_path, genes_file):
+        outdir = tmp_path / genes_file.replace(".", "_")
         proc = run_cli(
             "--mode", "genes",
-            "--genes-file", GENES / "genes.txt",
+            "--genes-file", GENES / genes_file,
             "--species", SPECIES,
             "--condition", CONDITION,
             "--outdir", outdir,
         )
         assert proc.returncode == 0, proc.stderr[-2000:]
         ranked = assert_standard_outputs(outdir)
-        expected = (GENES / "genes.txt").read_text().split()
+        expected = (GENES / genes_file).read_text().split()
         assert len(ranked) == len(expected)
         assert all(row.get("biomarker_rank") for row in ranked)
 

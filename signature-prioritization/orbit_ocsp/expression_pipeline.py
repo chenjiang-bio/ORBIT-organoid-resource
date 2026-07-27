@@ -15,6 +15,7 @@ from orbit_ocsp.expression_de import (
     VALID_DATA_TYPES,
     add_full_table_de_rank,
     filter_and_topk,
+    normalize_data_type,
     run_differential_expression,
 )
 from orbit_ocsp.protein_lookup import map_gene_ids_to_proteins, project_root
@@ -409,10 +410,7 @@ def run_expression_biomarker_pipeline(
     seed: int = 42,
 ) -> List[dict]:
     """Run the full expression → biomarker prioritization pipeline."""
-    if data_type not in VALID_DATA_TYPES:
-        raise ValueError(
-            f"Unsupported data_type {data_type!r}; expected {sorted(VALID_DATA_TYPES)}"
-        )
+    data_type = normalize_data_type(data_type)
 
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -913,10 +911,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--data-type",
         required=True,
-        choices=sorted(VALID_DATA_TYPES),
+        choices=sorted(VALID_DATA_TYPES | {"rnaseq"}),
         help=(
-            "Expression data type. R engine auto-selects by sample size: "
-            "1vs1→edgeR; both n>8→Wilcoxon; else DESeq2 (counts) or limma"
+            "Expression data type (rnaseq → rnaseq_count). R engine auto-selects "
+            "by sample size: 1vs1→edgeR; both n>8→Wilcoxon; else DESeq2 (counts) "
+            "or limma"
         ),
     )
     parser.add_argument(

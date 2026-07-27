@@ -1,0 +1,30 @@
+# orbit-ocsp-ensemble config — statistical scoring only (no LLM).
+# Usage:
+#   orbit-ocsp-ensemble --config examples/config.no_llm.yaml
+
+A: "examples/data/genes/a_terms.json"
+species: "hsa"
+
+condition: "Colorectal Cancer"
+additional_condition: "High Wnt (50%)"
+organ: "Colon"
+model: "Organoid"
+factor: "APC"
+
+stat: "ensemble"
+ensemble_r_values:
+  hypergeometric: 1000
+  jaccard: 1000
+  lin_bma: 50
+  overlap: 1000
+  resnik_bma: 50
+
+R: 1000
+seed: 42
+alpha: 0.05
+
+outdir: "out_no_llm"
+write_clean: true
+light_output: false
+llm_explain: false
+parallel: true

@@ -77,8 +77,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--groups", help="[expression] groups TSV/CSV")
     p.add_argument(
         "--data-type",
-        choices=["microarray", "rnaseq_count", "normalized"],
-        help="[expression] data type",
+        choices=["microarray", "rnaseq_count", "rnaseq", "normalized"],
+        help="[expression] data type (rnaseq is an alias for rnaseq_count)",
     )
     p.add_argument("--top-k", type=int, default=20)
     p.add_argument("--padj-max", type=float, default=0.05)

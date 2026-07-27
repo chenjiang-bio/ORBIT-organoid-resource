@@ -9,6 +9,7 @@ from orbit_ocsp.expression_de import (
     filter_and_topk,
     filter_de_results,
     mock_de_from_matrix,
+    normalize_data_type,
     read_expression_matrix,
     read_group_table,
     run_differential_expression,
@@ -17,6 +18,19 @@ from orbit_ocsp.expression_de import (
     select_topk,
     validate_matrix_and_groups,
 )
+
+
+def test_normalize_data_type_aliases():
+    assert normalize_data_type("rnaseq") == "rnaseq_count"
+    assert normalize_data_type("RNA-SEQ") == "rnaseq_count"
+    assert normalize_data_type("rnaseq_count") == "rnaseq_count"
+    assert normalize_data_type("microarray") == "microarray"
+    with pytest.raises(ValueError, match="Unsupported data_type"):
+        normalize_data_type("fpkm")
+
+
+def test_select_de_engine_accepts_rnaseq_alias():
+    assert select_de_engine("rnaseq") == "deseq2"
 
 
 def _write_matrix_and_groups(tmp_path: Path):

@@ -150,7 +150,7 @@ BiocManager::install(c("DESeq2", "limma", "edgeR"))
 ```bash
 # 1. Expression matrix with group labels — runs differential expression first
 orbit-ocsp --mode expression \
-  --matrix matrix.tsv --groups groups.tsv --data-type microarray \
+  --matrix matrix.tsv --groups groups.tsv --data-type rnaseq_count \
   --species hsa --condition "Colorectal Cancer" --outdir out/
 
 # 2. Gene list

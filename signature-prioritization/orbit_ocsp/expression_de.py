@@ -24,8 +24,22 @@ import pandas as pd
 
 DataType = Literal["rnaseq_count", "microarray", "normalized"]
 VALID_DATA_TYPES = {"rnaseq_count", "microarray", "normalized"}
+# Docs / older scripts sometimes say ``rnaseq``; treat it as counts.
+DATA_TYPE_ALIASES = {"rnaseq": "rnaseq_count", "rna-seq": "rnaseq_count"}
 VALID_GROUPS = {"case", "control"}
 LARGE_N_THRESHOLD = 8  # use Wilcoxon when both groups have n > 8
+
+
+def normalize_data_type(data_type: str) -> str:
+    """Map aliases onto a canonical ``VALID_DATA_TYPES`` value."""
+    dtype = (data_type or "").strip().lower()
+    dtype = DATA_TYPE_ALIASES.get(dtype, dtype)
+    if dtype not in VALID_DATA_TYPES:
+        raise ValueError(
+            f"Unsupported data_type {data_type!r}; expected one of "
+            f"{sorted(VALID_DATA_TYPES)} (alias: rnaseq → rnaseq_count)"
+        )
+    return dtype
 
 _PKG_ROOT = Path(__file__).resolve().parents[1]
 
@@ -51,12 +65,7 @@ DeBackend = Callable[..., pd.DataFrame]
 
 def select_de_engine(data_type: str) -> str:
     """Return the baseline engine name for a data type (ignoring sample size)."""
-    dtype = (data_type or "").strip().lower()
-    if dtype not in VALID_DATA_TYPES:
-        raise ValueError(
-            f"Unsupported data_type {data_type!r}; expected one of "
-            f"{sorted(VALID_DATA_TYPES)}"
-        )
+    dtype = normalize_data_type(data_type)
     if dtype == "rnaseq_count":
         return "deseq2"
     return "limma"
@@ -381,6 +390,7 @@ def run_differential_expression(
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     output_tsv = outdir / "de_results.tsv"
+    data_type = normalize_data_type(data_type)
 
     if de_results_path is not None:
         df = pd.read_csv(de_results_path, sep="\t")
