@@ -17,7 +17,6 @@ This module is part of [ORBIT](https://github.com/chenjiang-bio/ORBIT-organoid-r
 | [OPERATING_INSTRUCTIONS.md](OPERATING_INSTRUCTIONS.md) | Install, references, inputs, and how to run each pipeline |
 | [Example/README.md](Example/README.md) | Minimal prepared inputs for smoke tests |
 | [GeneralFile/README.md](GeneralFile/README.md) | Annotation and reference data layout |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines |
 
 ## Quick start
 
@@ -47,7 +46,3 @@ omics-pipeline/
   GeneralFile/   # gene sets and annotations (large genomes not in git)
   Example/       # prepared inputs only (no analysis outputs)
 ```
-
-## License
-
-MIT — see [LICENSE](LICENSE).

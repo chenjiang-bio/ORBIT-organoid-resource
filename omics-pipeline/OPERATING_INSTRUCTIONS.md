@@ -14,7 +14,6 @@ Species codes: `hsa` (human), `mmu` (mouse).
 omics-pipeline/
   README.md
   OPERATING_INSTRUCTIONS.md
-  LICENSE
   Script/
     install_deps.R          # install R / Bioconductor dependencies
     run_rna_upstream.sh     # bulk RNA-seq upstream
@@ -312,7 +311,3 @@ The scRNA-seq log records `STAGE START`, `STAGE DONE`, `STAGE ERROR`, and a comp
   - `--skip_save_image TRUE` / `--skip_network_plots TRUE`.
   - `--resolutions 0.6` or `0.4,0.8` - scRNA only; optional subset (default: `0.2,0.4,0.6,0.8,1.0`).
 - scRNA runs with many resolutions and per-term GSEA plots can take a long time on large datasets; parallel scRNA requires enough RAM for approximately N datasets at once.
-
-## License
-
-MIT - see [LICENSE](LICENSE).
