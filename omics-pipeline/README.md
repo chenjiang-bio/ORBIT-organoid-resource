@@ -2,9 +2,9 @@
 
 Batch analysis pipelines for public GEO organoid / tissue omics datasets (human and mouse):
 
-- **Bulk RNA-seq** — upstream (download → align → count) and downstream (DEG → enrichment → GSEA → GSVA)
-- **Microarray** — GEO prepare + limma DEG + enrichment / GSEA / GSVA
-- **scRNA-seq** — Seurat QC / clustering / annotation, optional multi-group DE and pseudobulk enrichment
+- **Bulk RNA-seq** - upstream (download → align → count) and downstream (DEG → enrichment → GSEA → GSVA)
+- **Microarray** - GEO prepare + limma DEG + enrichment / GSEA / GSVA
+- **scRNA-seq** - Seurat QC / clustering / annotation, optional multi-group DE and pseudobulk enrichment
 
 Species codes: `hsa` (human), `mmu` (mouse).
 
