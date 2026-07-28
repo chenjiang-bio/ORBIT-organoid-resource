@@ -1,0 +1,6 @@
+[
+    {
+        "url": "http://localhost:12400/mcp",
+        "transport": "streamable-http"
+    }
+]

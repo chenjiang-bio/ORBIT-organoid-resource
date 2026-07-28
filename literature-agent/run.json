@@ -1,0 +1,5 @@
+{
+    "EXTRACTION_DATA_DIR": "./pdf_output",
+    "OUTPUT_DATA_DIR": "./output",
+    "LOG_DIR": "./logs"
+}

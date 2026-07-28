@@ -1,0 +1,7 @@
+fastmcp==2.12.4
+Wikipedia-API==0.8.1
+requests==2.32.5
+numpy==2.1.2
+beautifulsoup4==4.14.2
+selenium==4.37.0
+undetected-chromedriver==3.5.5

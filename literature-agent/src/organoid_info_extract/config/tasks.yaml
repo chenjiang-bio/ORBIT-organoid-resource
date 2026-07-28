@@ -1,0 +1,387 @@
+extract_task:
+  description: >
+    **PRIMARY DATA** 
+      <KNOWLEDGE>{knowledge}</KNOWLEDGE>
+      <ORIGINAL_TEXT>{original_text}</ORIGINAL_TEXT>
+    
+    **HTML TAGS DESC**
+    (Note: Backtick `TAG` below refers to content wrapped in <TAG>...</TAG> XML-style tags in PRIMARY DATA section)
+    1. `KNOWLEDGE` (from <KNOWLEDGE>...</KNOWLEDGE>): Domain knowledge and global rules. Use as blueprint for extraction.
+    
+    2. `ORIGINAL_TEXT` (from <ORIGINAL_TEXT>...</ORIGINAL_TEXT>): The SOLE authoritative source - EXCLUSIVELY content within these XML tags. Extract exactly what appears here (e.g., if text says "50 ng/μl", extract "50 ng/μl" even if scientifically implausible, then add [❓️] marker).
+
+    **TASK**
+    1. Extract all the required information from the ORIGINAL_TEXT according to the KNOWLEDGE.
+    2. Your Final Answer MUST be a valid ExtractionResult that strictly follows the EXTRACTED_DATA_DESCRIPTION(defined in expected output) and all rules defined in KNOWLEDGE.
+    3. If there is no direct description but the key information can be indirectly obtained through reasoning or calculation, then output that key information. 
+    4. If it is truly impossible to obtain this crucial information, then output "not specified".
+    5. If when obtaining a certain piece of information, no detailed information is found at the corresponding location in the ORIGINAL_TEXT, but only 'refer to the attachment' or 'refer to other references' are found nearby, then directly output 'this information from xxxxxxxx (attachment x or DOI of the reference)' based on the full text content.
+    6. Extract the DOI number of the article itself (not DOIs of cited references). If the DOI of this article is not explicitly mentioned in `ORIGINAL_TEXT` (e.g., due to OCR extraction omissions), output 'not specified'. Do not extract or infer DOIs from cited articles, even if they are present in the text.
+
+    **CRITICAL**: 
+    1. DON'T Make up fake DOIs. ONLY extract the DOI of the article itself if it is explicitly present in `ORIGINAL_TEXT`.
+    2. DON'T speak "I will, I should, I think" or any other rubbish talk. ONLY output the final ExtractionResult JSON as your Final Answer.
+    3. MUST NOT USE ANY TOOLS in Extract Task! like using `get_pubmed_article_by_text` and `google_search` to find DOI, no DOI using 'not specified' is allowed. 
+
+    <LAST OUTPUT>
+    {last_output}
+    </LAST OUTPUT>
+
+    <LAST ERROR>
+    {last_error}
+    </LAST ERROR>
+
+data_search_plan_task:
+  description: >
+    **PRIMARY DATA** 
+      <KNOWLEDGE>{knowledge}</KNOWLEDGE>
+      <ORIGINAL_TEXT>{original_text}</ORIGINAL_TEXT>
+      <EXTRACTED_DATA>{extracted_data}</EXTRACTED_DATA>
+      <EXTRACTED_DATA_DESCRIPTION>{extracted_data_description}</EXTRACTED_DATA_DESCRIPTION>
+
+    **HTML TAGS DESC**
+    (Note: Backtick `TAG` below refers to content wrapped in <TAG>...</TAG> XML-style tags in PRIMARY DATA section)
+    1. `KNOWLEDGE` (from <KNOWLEDGE>...</KNOWLEDGE>): Domain knowledge and global rules. Use to understand what keywords typically need verification in this domain.
+    
+    2. `ORIGINAL_TEXT` (from <ORIGINAL_TEXT>...</ORIGINAL_TEXT>): The SOLE authoritative source - EXCLUSIVELY content within these XML tags. Analyze this to identify potentially unclear terms or suspicious information.
+    
+    3. `EXTRACTED_DATA` (from <EXTRACTED_DATA>...</EXTRACTED_DATA>): JSON output from extractor (ExtractionResult format). Scan ALL fields systematically to identify keywords requiring external verification (DOIs, gene symbols, catalog numbers, GSE/GPL/GSM IDs, equipment, reagents, unclear terms).
+    
+    4. `EXTRACTED_DATA_DESCRIPTION` (from <EXTRACTED_DATA_DESCRIPTION>...</EXTRACTED_DATA_DESCRIPTION>): Complete schema documentation for ExtractionResult. Use to understand field semantics and identify high-priority verification targets (e.g., meta.doi, omics_data.omics_id, material_source.source.catalog).
+
+    **TASK**    
+    1. MUST record 'TITLE' and 'DOI' from EXTRACTED_DATA and ORIGINAL_TEXT.
+    2. MUST record all of needing to search keywords (like: IDs, terms, definitions, explanations, etc.) from all fields in ORIGINAL_TEXT and EXTRACTED_DATA.
+    3. For unclear numbers in ORIGINAL_TEXT(ID, catalog or lot numbers, etc.): Search for detailed info about it.  Example: search `CID 12456231` to know "Molecular Formula C7H8O2, Synonyms	AKOS006380988, Molecular Weight	124.14 g/mol, Name: 2-Ethenylidenepent-4-enoic acid".
+    4. For each keyword, determine its type (e.g., DOI, gene symbol, GSE ID, unclear term) and provide a brief reason why it needs searching.
+    5. ⚠️ AVOID DUPLICATE KEYWORDS: Each keyword should appear ONLY ONCE in searchings list, even if it serves multiple purposes (e.g., "H3K27me3" as both gene_symbol and term). Choose the most appropriate keyword_type for each unique keyword.
+
+    **CRITICAL CATALOG/LOT NUMBER RULES (MUST FOLLOW):**
+    1. ✅ ONLY search catalog/lot numbers that EXPLICITLY APPEAR in ORIGINAL_TEXT.
+       - Example: If ORIGINAL_TEXT states "Matrigel (Corning, 356231)", you CAN search "Matrigel (Corning, 356231)"
+       - Example: If ORIGINAL_TEXT states "anti-MCU (Sigma, PA5-109304)", you CAN search "anti-MCU (Sigma, PA5-109304)"
+    
+    2. ❌ NEVER invent, infer, or hallucinate catalog/lot numbers not in ORIGINAL_TEXT
+       - Example: If ORIGINAL_TEXT only states "Matrigel (Corning)", DO NOT make up a fake number to search "Matrigel (Corning, 356231)"
+       - Example: If ORIGINAL_TEXT only states "B-27 Supplement", DO NOT assume any catalog number
+       - Rationale: Catalog numbers from your training data may be outdated or incorrect
+    
+    3. ❌ DO NOT use search to "complete" missing catalog/lot numbers
+       - If EXTRACTED_DATA has material without catalog → that's acceptable
+       - Search is for VERIFICATION, not gap-filling
+       - Missing catalog numbers should be reported as "not specified", not searched for
+    
+    4. ✅ Valid search reasons for catalog/lot numbers:
+       - "Verify product specifications for catalog number [X] mentioned in ORIGINAL_TEXT"
+       - "Retrieve detailed info for lot number [Y] stated in Materials section"
+    
+    5. ❌ Invalid search reasons (will cause hallucination errors):
+       - "Retrieve catalog number for [product]" (when not in ORIGINAL_TEXT)
+       - "Complete missing catalog info for [material]"
+       - "Search for standard catalog number of [reagent]"
+
+    **CRITICAL REQUIREMENTS**
+    1. If you search N keywords, ensure n_querys=N=len(searchings).
+    2. Every catalog/lot number in plan MUST have corresponding exact match in ORIGINAL_TEXT, Copy the number exactly as it appears (case-sensitive, punctuation-sensitive).
+    3. Ensure NO DUPLICATE keywords in searchings list. Use DISTINCT keywords only (e.g., if "H3K27me3" needs searching, list it once with the most relevant keyword_type).
+
+
+    <LAST OUTPUT>
+    {last_output}
+    </LAST OUTPUT>
+
+    <LAST ERROR>
+    {last_error}
+    </LAST ERROR>
+
+data_search_execute_task:
+  description: >
+    **PRIMARY DATA** 
+      <SEARCH_PLAN>{search_plan}</SEARCH_PLAN>
+      <SEARCH_PLAN_DESCRIPTION>{search_plan_description}</SEARCH_PLAN_DESCRIPTION>
+
+    **HTML TAGS DESC**
+    (Note: Backtick `TAG` below refers to content wrapped in <TAG>...</TAG> XML-style tags in PRIMARY DATA section)
+    1. `SEARCH_PLAN` (from <SEARCH_PLAN>...</SEARCH_PLAN>): DataSearchPlan JSON from planner agent. Contains structured list of SearchItemPlan with keywords, types, suggested tools, reasons. This is your execution blueprint.
+    2. `SEARCH_PLAN_DESCRIPTION` (from <SEARCH_PLAN_DESCRIPTION>...</SEARCH_PLAN_DESCRIPTION>): Schema documentation for DataSearchPlan and SearchItemPlan.
+
+    **SUGGESTED TOOLS**
+    - DOI → ["get_pubmed_article_by_doi", "get_pubmed_article_by_text","get_pubmed_article_by_pmid", "get_pubmed_article_by_pmcid", "google_search"]
+    - TITLE → ["get_pubmed_article_by_text", "google_search"]
+    - GSE_ID → ["get_gse_summary", "get_gse_full_info", "google_search"]
+    - GPL_ID → ["get_gpl_full_info", "google_search"]
+    - GSM_ID → ["get_gsm_full_info", "google_search"]
+    - gene_symbol → ["get_gene_summary","get_gene_full_info", "google_search"]
+    - catalog_number/reagent/equipment → ["google_search"]
+    - term → ["get_wikipedia_summary", "google_search"]
+    - Other → ["google_search"]
+    - PS: Select one tool from LIST, List is ordered by priority(high → low), Example: for GSE_ID, first try `get_gse_summary`, if fails, try `get_gse_full_info`, if still fails, try `google_search`.
+
+    **TASK** 
+    1. Parse plan, and Determine the tools required for each keyword in accordance with the SUGGESTED TOOLS, and Group by tool for batch processing where possible.
+    2. MUST use `\nAction:get_pubmed_article_by_text  \nAction Input:{"texts": ["title"]}` to search for Original DOI and Corrected DOIs.
+    3. USE TOOLS to Try You Best to find the TRUE information for each searching item in SEARCH_PLAN one by one following `SUGGESTED TOOLS` priority.
+    4. REMEMBER YOUR PLAN and strictly follow it. You Can Output PLAN in Thought to remind yourself after Using 3 TOOLS.
+    5. When using the "google_search" to query a keyword, it is possible that the search results have no relation to the keyword. You MUST filter and ignore these irrelevant data. For example, when searching for "TP53", there are 10 results. However, among these, 2 of them are not related to TP53. Therefore, you need to ignore these 2 search results. If all results are irrelevant, you need to retry to search the keyword after wait 2 sec or after searching other keywords.
+    6. Ensure to search all keywords in SEARCH_PLAN to get avaliable infomation as a Final Answer. 
+    7. If search result for keywords is not English, you MUST translate it into English in Final Answer.
+    8. FINAL ANSWER: ONLY After Searching all keywords in SEARCH_PLAN and getting results CAN output DataSearchResult with all search results as `Final Answer`. The output of the keyword "Final Answer" will indicate the completion of the task.
+    9. ⚠️ HANDLE DUPLICATE KEYWORDS IN PLAN: If SEARCH_PLAN contains duplicate keywords (e.g., "H3K27me3" appears twice), you MUST create SEPARATE DataSearchInfo records for EACH occurrence, even if search results are identical. This ensures DataSearchResult.searchings length matches SEARCH_PLAN.n_querys exactly.
+    
+    **TOOL EXECUTION STRATEGY:**
+    - When Using the SAME Tool, MUST BATCH queries. Example:`\nAction:google_search \nAction Input:{"querys": ["keyword1", "keyword2", "keyword3"]}`.
+    
+    **ERROR HANDLING:**
+    - **"429 error"/"rate limit"/"timeout"**: Retry 2-3 times. If still fails, use `wait_second` tool (5-10s), then retry OR try next tool in suggested_tools.
+    - **"not found"**: Try next tool in suggested_tools, modify search term slightly, or record failure with reason.
+    - **After exhausting all suggested_tools**: Record failure with specific reason, mark as failed in DataSearchInfo by beginning with "FAILED: ...".
+
+    **CRITICAL REQUIREMENTS**
+    1. Ensure DataSearchResult.n_querys(you output) >= SEARCH_PLAN.n_querys(plan). If there is no DOI in searchings field of SEARCH_PLAN, it allowed n_querys(result) > n_querys(in plan). 
+    3. For failed searches: you must change the keywords using the same tool or change other tools with the same keywords to search again. Only when using google_search fails to retrieve any information, should the search for this keyword be stopped, and this situation should be recorded.
+    4. NEVER skip or make up any search record. The True INFO is very important.
+    5. Final searching results MUST contain TRUE `DOI` and `correction notice dois`. If there is no DOI item in searchings field of SEARCH_PLAN, MUST add one search item to search for DOI and Corrected DOIs of the article itself using title from SEARCH_PLAN.
+    6. By using tools to search DOIs(original DOI and correction notice dois), *UNTIL get the true DOI(DOI matched title)*, then you NEED to add it to Final Answer of next tasks.
+    7. If there are still keywords for which no queries have been made here, please do not output the phrase "Final Answer" which indicates the end of the task.
+    8. If DataSearchResult.n_querys(you output) < SEARCH_PLAN.n_querys(plan), the Result will be regarded as invalid.
+    9. ⚠️ DUPLICATE KEYWORD REQUIREMENT: DataSearchResult.searchings MUST have exact same length as SEARCH_PLAN.searchings. If plan has duplicate keywords (e.g., "H3K27me3" twice), output MUST also contain that keyword twice (potentially with same search_result), maintaining 1:1 correspondence with plan items.
+
+    **OUTPUT FORMAT RULES:**
+    - CASE1 FORMAT: Use "\nThought: What you think or plan.", "\nAction: tool name.", "\nAction Input: tool args in JSON format.", "\nObservation:tool output By TOOL NOT YOU." to Using TOOL
+    - CASE2 FORMAT: Use "\nThought: What you think or plan.", "\nFinal Answer: ```json {the final JSON (DataSearchResult)}```". JSON DataSearchResult in ```json ...``` block.
+    - CASE1 and CASE2 can not appear at the same time. PS: `Final Output`=`Final Answer`
+
+    **AVOID REDUNDANT TOOL INVOCATIONS:**
+    **DO NOT repeatedly invoke the same tool with identical parameters expecting different results.** If a tool call fails or returns insufficient results, either:
+    1. Modify the parameters (different query, different approach)
+    2. Try a different tool
+    3. Accept the limitation and document in puzzles/notes
+    - Each tool invocation should provide NEW information or attempt a DIFFERENT approach. Examples:
+    -- ❌ WRONG: `search_tool("organoid protocol")` → no results → `search_tool("organoid protocol")` again
+    -- ✅ CORRECT: `search_tool("organoid protocol")` → no results → `search_tool("3D culture method")` (different query)
+    -- ❌ WRONG: `fetch_article(doi)` → paywall error → `fetch_article(doi)` → same error → `fetch_article(doi)` again
+    -- ✅ CORRECT: `fetch_article(doi)` → paywall error → document limitation in puzzles and move on
+
+    <LAST OUTPUT>
+    {last_output}
+    </LAST OUTPUT>
+
+    <LAST ERROR>
+    {last_error}
+    </LAST ERROR>
+
+data_check_task:
+  description: >
+    **PRIMARY DATA** 
+      <KNOWLEDGE>{knowledge}</KNOWLEDGE>
+      <ORIGINAL_TEXT>{original_text}</ORIGINAL_TEXT>
+      <EXTRACTED_DATA>{extracted_data}</EXTRACTED_DATA>
+      <EXTRACTED_DATA_DESCRIPTION>{extracted_data_description}</EXTRACTED_DATA_DESCRIPTION>
+    
+    **HTML TAGS DESC**
+    (Note: Backtick `TAG` below refers to content wrapped in <TAG>...</TAG> XML-style tags in PRIMARY DATA section)
+    1. `KNOWLEDGE` (from <KNOWLEDGE>...</KNOWLEDGE>): Domain knowledge and global rules.  Use to identify valid vs invalid extraction.
+    
+    2. `ORIGINAL_TEXT` (from <ORIGINAL_TEXT>...</ORIGINAL_TEXT>): The SOLE authoritative source - EXCLUSIVELY content within these XML tags. When saying "original text states X", MUST quote directly from here. Even if scientifically implausible (e.g., "50 ng/μl" instead of "50 ng/mL"), if <ORIGINAL_TEXT> contains it, that IS what original text states.
+    
+    3. `EXTRACTED_DATA` (from <EXTRACTED_DATA>...</EXTRACTED_DATA>): JSON output from extractor (ExtractionResult format). Validate against ORIGINAL_TEXT and KNOWLEDGE rules. Check for: value differences, rule violations, missing fields, incorrect usage.
+    
+    4. `EXTRACTED_DATA_DESCRIPTION` (from <EXTRACTED_DATA_DESCRIPTION>...</EXTRACTED_DATA_DESCRIPTION>): Complete schema documentation for ExtractionResult. Use to verify EXTRACTED_DATA follows schema correctly (e.g., "List[T] fields must be arrays").
+
+    **TASK**
+    Ensure that the extracted information is strictly from
+      1. `EXTRACTED_DATA` must be from: `ORIGINAL_TEXT`
+      2. `EXTRACTED_DATA` must comply with `EXTRACTED_DATA_DESCRIPTION`
+      3. `EXTRACTED_DATA` and `YOUR FINAL ANSWER` MUST follow all rules defined in KNOWLEDGE.
+      4. check null or 'no specified' fields whether is really not specified or can not be inferred. If can be inferred, indicate the inference process and the inferred value to be suggestions.
+      5. Check the extracted data for any inconsistencies or scientific or omitted errors. If any issues are found, Indicate where the problem lies and explain the reasons you think it is incorrect.   
+      6. True DOI and corrected DOIs MUST be in results of searcher(`search.searchings`), if it is missing in EXTRACTED_DATA, you NEED to add or search it to Final Answer. DO NOT make up fake DOIs, it's DANGEROUS.
+      7. DO NOT OUTPUT EXTRACTED_DATA again, NEED to OUTPUT DataCheckResult with errors and puzzles fields.
+    
+    **CHECKER-SPECIFIC: [❓️] Marker Validation (see RULE 5 in KNOWLEDGE for full definition)**
+    When EXTRACTED_DATA contains [❓️] marker (e.g., "50 ng/μl [❓️]"):
+    - ✅ CORRECT if value matches ORIGINAL_TEXT exactly and is scientifically questionable
+    - ❌ ERROR if: (a) [❓️] missing on suspicious value, or (b) value differs from ORIGINAL_TEXT
+    - ❌ NEVER suggest "correcting" value to what it "should be" scientifically
+    
+    **Two-Dimensional Judgment:**
+    1. **Extraction correctness** (errors): Does value+marker match ORIGINAL_TEXT?
+       - Missing [❓️] on suspicious value → errors (suggest adding)
+       - Has [❓️] on normal value → errors (suggest removing)
+    2. **Source quality** (puzzles): Is ORIGINAL_TEXT itself questionable? → puzzles (Anomaly)
+    
+    **ALLOWED suggestions:**
+    - "Add [❓️] to flag suspicious value"
+    - Structural corrections, nomenclature standardization per RULE 20
+    
+    **OUTPUT FORMAT: DataCheckResult with TWO distinct sections**
+    
+    **1. errors (DataCheckResult.errors)** - For identifiable data mistakes you found:
+       - Rule violations (e.g., ECM in material_source per MATERIALS_RULES, not supplements)
+       - Scientific inaccuracies (e.g., wrong species nomenclature per RULE 20, impossible values)
+       - Missing required fields that can be extracted/inferred from ORIGINAL_TEXT
+       - Incorrect field usage (e.g., growth factor in wrong category per MATERIALS_RULES)
+       - Standardization issues (e.g., TUJ1 should be TUBB3 per RULE 20 Nomenclature)
+       - Null/not specified values that should be filled based on ORIGINAL_TEXT
+       - Time anchor/axis violations (e.g., missing required anchors, incorrect segment references, inconsistent time_axis structure)
+       - RULE 5 violations: Missing [❓️] on suspicious values, or unnecessary [❓️] on normal values
+       Each error MUST have: error_path (JSON path), error_reason (why it's wrong), suggestion (how to fix)
+       
+       **CRITICAL - Error Reason Requirements:**
+       When mentioning ORIGINAL_TEXT content, you MUST:
+       - Quote the exact phrase from <ORIGINAL_TEXT> tags
+       - Include line reference or context (e.g., "ORIGINAL_TEXT states '50 ng/μl EGF' in Methods section")
+       - NEVER claim "original text states X" based on inference, search results, or scientific expectation
+    
+    **2. puzzles (DataCheckResult.puzzles)** - For TWO types of issues:
+       
+       **Type A - Schema/Rule Ambiguities** (RARE, use sparingly):
+       - Contradictory rules that make your decision impossible
+       - Missing/unclear field documentation preventing correct extraction
+       - Schema structure problems (e.g., no appropriate field exists for certain data type)
+       - Ambiguous/conflicting examples in EXTRACTED_DATA_DESCRIPTION
+       ONLY when YOU cannot determine correct answer due to rule/schema design issues
+       
+       **Type B - Source Data Quality Issues (Anomaly)** (MUST report when found):
+       - Scientifically implausible values in ORIGINAL_TEXT (e.g., "50 μg/mL FGF" when typical range is ng/mL)
+       - Contradictions or mislabeling in source paper (e.g., "KRT17 as ceruloplasmin marker")
+       - Suspicious data requiring manual verification
+       Use source='Anomaly' to distinguish from schema/rule puzzles
+       **CRITICAL**: Report Anomaly puzzles even when extraction is correct with [❓️]
+    
+    **CRITICAL DISTINCTIONS to avoid false puzzles:**
+    - ❌ DON'T confuse application domain with model definition: "used for organoid science" ≠ if_organoid=true
+    - ❌ DON'T question absolute consistency rules: model_category='Spheroid' ALWAYS requires if_organoid=false
+    - ❌ DON'T report choosing between clear enum values as puzzles: that's your extraction task
+    - ❌ DON'T confuse research purpose with culture technique: "sustained model for pathological mechanisms" ≠ "sustained co-culture system"
+    
+    **CRITICAL DISTINCTION (Decision Tree for errors vs puzzles):**
+    - Can you identify what's WRONG in the data? → **errors**
+    - Do you know HOW to fix it? → **errors**  
+    - Is ORIGINAL_TEXT scientifically questionable? → **puzzles (Anomaly)**
+    - Are rules/docs unclear/contradictory making judgment impossible? → **puzzles (Type A)**
+    - **Default to errors** unless it's genuinely a schema/documentation issue OR source data quality concern   
+
+    **IMPORTANT:**
+    - MUST NOT USE ANY TOOLS in Check Task! MUST NOT USE ANY TOOLS in Check Task! MUST NOT USE ANY TOOLS in Check Task!
+    - Your Final Answer MUST be a DataCheckResult JSON containing ONLY `errors` and `puzzles` fields as per EXTRACTED_DATA_DESCRIPTION.
+    - Example: 
+    ```json
+    {"check": {"is_pass": false, "errors": [{"error_path": "cultures[0].story.biomarker[5].biomarker_name.std","error_reason": "xxxxxxxxxxxxxxxxxx","suggestion": "xxxxxxxxxxxxxxxxxxxxxxxx",}]}
+    ```
+
+    <LAST OUTPUT>
+    {last_output}
+    </LAST OUTPUT>
+
+    <LAST ERROR>
+    {last_error}
+    </LAST ERROR>
+
+# content_check_task:
+#   description: >
+#     <KNOWLEDGE>
+#     {knowledge}
+#     </KNOWLEDGE>
+
+#     Extract Data should be from:
+#     <ORIGINAL_TEXT>
+#     {original_text}
+#     </ORIGINAL_TEXT>. 
+
+#     Check the extracted data for any inconsistencies or scientific errors.
+
+#   agent: content_checker
+
+correct_task:
+  description: >
+    **PRIMARY DATA**
+      <KNOWLEDGE>{knowledge}</KNOWLEDGE>
+      <ORIGINAL_TEXT>{original_text}</ORIGINAL_TEXT>
+      <EXTRACTED_DATA>{extracted_data}</EXTRACTED_DATA>
+      <EXTRACTED_DATA_DESCRIPTION>{extracted_data_description}</EXTRACTED_DATA_DESCRIPTION>
+      <CHECKED_WITH_SEARCHED_DATA>{checked_data}</CHECKED_WITH_SEARCHED_DATA>
+      <CHECKED_WITH_SEARCHED_DATA_DESCRIPTION>{checked_data_description}</CHECKED_WITH_SEARCHED_DATA_DESCRIPTION>
+
+    **HTML TAGS DESC**
+    (Note: Backtick `TAG` below refers to content wrapped in <TAG>...</TAG> XML-style tags in PRIMARY DATA section)
+    1. `KNOWLEDGE` (from <KNOWLEDGE>...</KNOWLEDGE>): Domain knowledge and global rules. Final Answer MUST comply with all rules.
+    
+    2. `ORIGINAL_TEXT` (from <ORIGINAL_TEXT>...</ORIGINAL_TEXT>): The SOLE authoritative source - EXCLUSIVELY content within these XML tags. Ultimate truth when validating suggestions. If suggestion claims "original text states X" but <ORIGINAL_TEXT> contains Y, the suggestion is WRONG.
+    
+    3. `EXTRACTED_DATA` (from <EXTRACTED_DATA>...</EXTRACTED_DATA>): Initial extraction output needing correction. Starting point - modify based on valid suggestions from CHECKED_WITH_SEARCHED_DATA.
+    
+    4. `EXTRACTED_DATA_DESCRIPTION` (from <EXTRACTED_DATA_DESCRIPTION>...</EXTRACTED_DATA_DESCRIPTION>): Schema documentation for ExtractionResult. Corrected output MUST follow this schema.
+    
+    5. `CHECKED_WITH_SEARCHED_DATA` (from <CHECKED_WITH_SEARCHED_DATA>...</CHECKED_WITH_SEARCHED_DATA>): Combined checker errors (with error_path, error_reason, suggestion, who) and searcher results. Validate each suggestion against ORIGINAL_TEXT, then apply ONLY valid ones. Multiple checkers may contradict - detect conflicts and choose correctly.
+    
+    6. `CHECKED_WITH_SEARCHED_DATA_DESCRIPTION` (from <CHECKED_WITH_SEARCHED_DATA_DESCRIPTION>...</CHECKED_WITH_SEARCHED_DATA_DESCRIPTION>): Schema for DataSearchCheckResult. Note: search results are context only, not corrections to apply.
+
+    **TASK**
+    1. Review suggestions in `CHECKED_WITH_SEARCHED_DATA` (contains error_path, error_reason, suggestion, who fields from multiple checkers).
+    2. When multiple checkers give conflicting suggestions for the same field, verify against `ORIGINAL_TEXT` to choose the correct one.
+    3. Based on the suggestions after review, the contents of the EXTRACTED_DATA are revised and output as final Answer.
+    4. Ensure final Answer strictly follows `ORIGINAL_TEXT` and complies with all rules in `KNOWLEDGE`.
+    5. If when obtaining a certain piece of information, no detailed information is found at the corresponding location in the ORIGINAL_TEXT, but only 'refer to the attachment' or 'refer to other references' are found nearby, then directly output 'this information from xxxxxxxx (attachment x or DOI of the reference)' based on the full text content.
+    6. The Correct DOI SHOUD BE in results of `CHECKED_WITH_SEARCHED_DATA.search.searchings`, if it is missing in EXTRACTED_DATA, you NEED to add it to final Answer.
+
+    **CRITICAL**: Final Answer MUST comply with ALL rules defined in KNOWLEDGE (same rules as extract_task):
+    - RULE 20: GLOBAL EXTRACTION RULES (ONE entity per item, Nomenclature, Units, Source preservation, Multiple protocols)
+    - RULE 2: TYPE AND VALUE OF FIELD (Required vs Optional fields, token-efficient handling)
+    - Time Axis System: time_anchors (milestone/intervention/observation), time_axis (Main/Branch), TimeAxisSegmentInfo structure
+    - CULTURE MATERIAL CLASSIFICATION & DUAL RECORDING RULES (Medium decomposition, dual recording in steps and material_source)
+    - Tag rules (RULE 3/4/5: [❓️][💡][🔎]), Co-culture rules (RULE 12/13/18), Biomarkers (RULE 14), etc.
+    - MUST NOT USE ANY TOOLS in Correct Task! MUST NOT USE ANY TOOLS in Correct Task! MUST NOT USE ANY TOOLS in Correct Task!
+
+    <LAST OUTPUT>
+    {last_output}
+    </LAST OUTPUT>
+
+    <LAST ERROR>
+    {last_error}
+    </LAST ERROR>
+
+judge_task:
+  description: >
+    **PRIMARY DATA**
+      <KNOWLEDGE>{knowledge}</KNOWLEDGE>
+      <ORIGINAL_TEXT>{original_text}</ORIGINAL_TEXT>
+      <WAIT_FOR_SCORES>{waiting_for_scores}</WAIT_FOR_SCORES>
+      <EXTRACTED_DATA_DESCRIPTION>{extracted_data_description}</EXTRACTED_DATA_DESCRIPTION>
+      <CHECKED_WITH_SEARCHED_DATA>{checked_data}</CHECKED_WITH_SEARCHED_DATA>
+      <CHECKED_WITH_SEARCHED_DATA_DESCRIPTION>{checked_data_description}</CHECKED_WITH_SEARCHED_DATA_DESCRIPTION>
+    
+    **HTML TAGS DESC**
+    (Note: Backtick `TAG` below refers to content wrapped in <TAG>...</TAG> XML-style tags in PRIMARY DATA section)
+    1. `KNOWLEDGE` (from <KNOWLEDGE>...</KNOWLEDGE>): Domain knowledge and global rules. Use to identify correct vs incorrect extraction for scoring.
+    
+    2. `ORIGINAL_TEXT` (from <ORIGINAL_TEXT>...</ORIGINAL_TEXT>): The SOLE authoritative source - EXCLUSIVELY content within these XML tags. Judge accuracy by comparing WAIT_FOR_SCORES against what actually appears here, not external knowledge.
+    
+    3. `WAIT_FOR_SCORES` (from <WAIT_FOR_SCORES>...</WAIT_FOR_SCORES>): Multiple ExtractionResult outputs for corrector (e.g., from gpt, gemini, grok). Format: "<SCORE THIS Name=final_output-gpt.json>{...}</SCORE THIS>" blocks. Score each individually, maintain order.
+    
+    4. `EXTRACTED_DATA_DESCRIPTION` (from <EXTRACTED_DATA_DESCRIPTION>...</EXTRACTED_DATA_DESCRIPTION>): Schema documentation for ExtractionResult. Use to identify structural errors (missing required fields, wrong types, incorrect array usage) for deductions.
+    
+    5. `CHECKED_WITH_SEARCHED_DATA` (from <CHECKED_WITH_SEARCHED_DATA>...</CHECKED_WITH_SEARCHED_DATA>): Combined checker errors for extractor and searcher results. Check whether each wait_for_scores(corrector) output has corrected these errors.
+    
+    6. `CHECKED_WITH_SEARCHED_DATA_DESCRIPTION` (from <CHECKED_WITH_SEARCHED_DATA_DESCRIPTION>...</CHECKED_WITH_SEARCHED_DATA_DESCRIPTION>): Schema for DataSearchCheckResult. Note: search results are context only, not corrections to apply.
+
+    **WORKING FLOW**: extractor(ExtractionResult, No in Context) → checker + searcher (CHECKED_WITH_SEARCHED_DATA) → corrector(WAIT_FOR_SCORES) → judge
+
+    **TASK**
+    1. Give a score to each result in `EXTRACTED_DATA` based on its correctness by combining `ORIGINAL_TEXT`, `EXTRACTED_DATA` and `EXTRACTED_DATA_DESCRIPTION`.
+    2. N EXTRACTED_DATA results, give N scores.
+    3. Pay attention to order of EXTRACTED_DATA, your scores should follow the same order.
+    4. Judge whether each result follows the RULES defined in KNOWLEDGE and ORIGINAL_TEXT.
+    6. Give detailed reasons for deductions for each result.
+    7. ONLY WHEN deduction_score > 0, provide reason to deduct score. (deduction_score=0, no need to provide reason)
+    8. TRUE DOI and Correction Notice DOIs should be in results of searcher(`search.searchings`), if it is missing in EXTRACTED_DATA, you NEED to get it and judge it.
+    
+    **SCORING:** Follow the "JUDGER SCORING RULES" section in KNOWLEDGE for complete deduction criteria, score ranges, and special cases.
+
+    <LAST OUTPUT>
+    {last_output}
+    </LAST OUTPUT>
+  
+    <LAST ERROR>
+    {last_error}
+    </LAST ERROR>

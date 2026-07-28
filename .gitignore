@@ -220,3 +220,7 @@ __marimo__/
 # Keep omics pipeline R helpers (root template ignores lib/)
 !omics-pipeline/Script/lib/
 !omics-pipeline/Script/lib/**
+
+# Keep literature-agent crewAI patches (root template ignores lib/)
+!literature-agent/venv_patch/
+!literature-agent/venv_patch/**

@@ -1,0 +1,33 @@
+[project]
+name = "organoid_info_extract"
+version = "0.1.0"
+description = "organoid_info_extract using crewAI"
+authors = [
+    { name = "Your Name", email = "you@example.com" },
+]
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "crewai-tools[mcp]>=0.76.0",
+    "crewai[tools]>=0.203.0,<1.0.0",
+    "fastembed>=0.7.3",
+    "mcp>=1.17.0",
+    "qdrant-client>=1.15.1",
+    "instructor>=1.13.0",
+    "fastmcp>=2.12.4",
+]
+
+[project.scripts]
+organoid_info_extract = "organoid_info_extract.main:run"
+run_crew = "organoid_info_extract.main:run"
+train = "organoid_info_extract.main:train"
+replay = "organoid_info_extract.main:replay"
+test = "organoid_info_extract.main:test"
+
+[build-system]
+requires = [
+    "hatchling",
+]
+build-backend = "hatchling.build"
+
+[tool.crewai]
+type = "crew"
