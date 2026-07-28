@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Keep omics pipeline R helpers (root template ignores lib/)
+!omics-pipeline/Script/lib/
+!omics-pipeline/Script/lib/**

@@ -1,22 +1,53 @@
 # Omics Pipeline
 
-Organoid multi-omics analysis pipeline for ORBIT.
+Batch analysis pipelines for public GEO organoid / tissue omics datasets (human and mouse):
 
-## Scope
+- **Bulk RNA-seq** — upstream (download → align → count) and downstream (DEG → enrichment → GSEA → GSVA)
+- **Microarray** — GEO prepare + limma DEG + enrichment / GSEA / GSVA
+- **scRNA-seq** — Seurat QC / clustering / annotation, optional multi-group DE and pseudobulk enrichment
 
-This module will host reproducible workflows for processing and analyzing organoid omics datasets (for example bulk RNA-seq, microarray, and single-cell RNA-seq), including metadata handling, differential analysis, and pathway-level summaries used downstream by ORBIT.
+Species codes: `hsa` (human), `mmu` (mouse).
 
-## Status
+This module is part of [ORBIT](https://github.com/chenjiang-bio/ORBIT-organoid-resource).
 
-Scaffold only. Implementation will be contributed by collaborators.
+## Documentation
 
-## Planned contents
+| Document | Contents |
+|----------|----------|
+| [OPERATING_INSTRUCTIONS.md](OPERATING_INSTRUCTIONS.md) | Install, references, inputs, and how to run each pipeline |
+| [Example/README.md](Example/README.md) | Minimal prepared inputs for smoke tests |
+| [GeneralFile/README.md](GeneralFile/README.md) | Annotation and reference data layout |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines |
 
-- Pipeline entry points and configuration
-- Processing and analysis scripts
-- Example configs and minimal test inputs (no large raw data in git)
-- Module-specific documentation
+## Quick start
 
-## Usage
+```bash
+# Install R / Bioconductor dependencies
+Rscript Script/install_deps.R --type all
 
-Instructions will be added when the pipeline code is committed to this directory.
+# Bulk RNA-seq (downstream)
+Rscript Script/run_RNA_seq.R \
+  --work_dir Example/RNA_seq --organism hsa --gse GSE111082
+
+# Microarray
+Rscript Script/run_MicroArray.R \
+  --work_dir Example/MicroArray --organism hsa --gse GSE30304
+
+# scRNA-seq
+Rscript Script/run_scRNA_seq.R \
+  --work_dir Example/scRNA_seq --organism mmu --gse GSE223368 \
+  --mode auto --tissue Intestine
+```
+
+## Layout
+
+```text
+omics-pipeline/
+  Script/        # pipeline entry points and helpers
+  GeneralFile/   # gene sets and annotations (large genomes not in git)
+  Example/       # prepared inputs only (no analysis outputs)
+```
+
+## License
+
+MIT — see [LICENSE](LICENSE).

@@ -1,0 +1,2 @@
+group1	group2	tissue_type
+DMSO_treated_Apc_mutant_organoids	DBZ_treated_Apc_mutant_organoids	Intestine

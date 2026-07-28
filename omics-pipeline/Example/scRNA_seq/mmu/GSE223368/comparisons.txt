@@ -1,0 +1,2 @@
+group1	group2	tissue_type
+BMT_d7_syngeneic_control	BMT_d7_graft_versus_host_Allo	Intestine

@@ -1,0 +1,3 @@
+ID	Sample	Source	Group
+1	GSM3317831	GSM3317831_DBZ_treated_Apc_mutant_organoids_rep1	DBZ_treated_Apc_mutant_organoids
+2	GSM3317832	GSM3317832_DMSO_treated_Apc_mutant_organoids_rep1	DMSO_treated_Apc_mutant_organoids

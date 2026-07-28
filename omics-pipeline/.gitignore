@@ -1,0 +1,71 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Analysis outputs (keep inputs under Example/; ignore generated results)
+**/batch_*.log
+**/*.RData
+**/DEG_*.csv
+**/GSEA_*.csv
+**/GSVA_*.csv
+**/ssGSEA_*.csv
+**/GO_enrich_*.csv
+**/KEGG_enrich_*.csv
+**/CellMarker_rich*.csv
+**/*_NetworkDiagram.csv
+**/Marker_genes.csv
+**/CellRatio.csv
+**/gene_cell_exp.csv
+**/gene_trajectory_exp.csv
+**/umap.csv
+**/tsne.csv
+**/Cell_Clusters_Celltype.csv
+**/counts.csv
+**/resolution_*/
+**/*_vs_*/
+Example/**/Data/
+
+# Large reference assets (download / build locally; see README)
+GeneralFile/ref_genome/*.fa
+GeneralFile/ref_genome/*.fa.gz
+GeneralFile/ref_genome/*.ht2
+GeneralFile/ref_genome/*.ht2l
+GeneralFile/ref_genome/GRCh38*
+GeneralFile/ref_genome/GRCm39*
+GeneralFile/SingleR/*.rds
+!GeneralFile/SingleR/HumanPrimaryCellAtlasData.rds
+!GeneralFile/SingleR/MouseRNAseqData.rds
+GeneralFile/ssGSEA/*.rds
+GeneralFile/ssGSEA/*.xls
+GeneralFile/ssGSEA/*.xlsx
+
+# Upstream working data
+**/SRR*.fastq.gz
+**/ERR*.fastq.gz
+**/SRX*.fastq.gz
+**/*.bam
+**/*.bam.bai
+**/*.sam
+**/*.clean.fq.gz
+
+# Extra safety: never commit Example analysis artifacts
+Example/**/*.jpg
+Example/**/*.png
+Example/**/*.pdf
+Example/**/*.rds
+Example/**/*.RData
+Example/**/batch_*.log
+Example/_timing/

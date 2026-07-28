@@ -1,0 +1,2 @@
+group1	group2
+epithelial_cells_from_small_intestine_crypts	cells_from_cultured_crypt_organoids

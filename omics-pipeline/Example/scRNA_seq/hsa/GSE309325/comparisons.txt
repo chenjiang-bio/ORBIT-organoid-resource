@@ -1,0 +1,5 @@
+group1	group2	tissue_type
+mock_infection	SARS_CoV_2_1dpi	Lung
+mock_infection	SARS_CoV_2_2dpi	Lung
+mock_infection	SARS_CoV_2_7dpi	Lung
+mock_infection	SARS_CoV_2_11dpi	Lung
