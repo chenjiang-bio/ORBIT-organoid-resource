@@ -8,6 +8,13 @@ Default backend is R (``R/run_de.R``), with sample-size–aware engine selection
   - ``rnaseq_count`` → DESeq2
   - ``microarray`` / ``normalized`` → limma
 
+``data_type`` is declared by the caller, so
+:func:`check_data_type_against_matrix` compares it against the matrix values
+before dispatch. A mismatch is not cosmetic: ``data_type`` also decides whether
+counts are TMM/logCPM-normalized ahead of the Wilcoxon path, and on the
+un-normalized branch ``log2FoldChange`` holds a difference of raw per-group
+means rather than a log2 ratio.
+
 ``backend="mock"`` remains available for deterministic unit tests.
 """
 
@@ -16,6 +23,8 @@ from __future__ import annotations
 import shutil
 import subprocess
 import tempfile
+import warnings
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Literal, Optional, Tuple, Union
 
@@ -29,6 +38,18 @@ DATA_TYPE_ALIASES = {"rnaseq": "rnaseq_count", "rna-seq": "rnaseq_count"}
 VALID_GROUPS = {"case", "control"}
 LARGE_N_THRESHOLD = 8  # use Wilcoxon when both groups have n > 8
 
+# --- thresholds for describing a matrix's numeric scale ---------------------
+# Counts are integers. A handful of non-integer entries can survive rounding or
+# manual edits, so require "almost all" rather than "all".
+INTEGER_FRACTION_MIN = 0.999
+# Raw counts reach into the thousands; small synthetic fixtures do not. This
+# keeps toy matrices in the test suite from being mistaken for real count data.
+COUNT_LIKE_MAX_VALUE_MIN = 1000.0
+# Per-sample totals: raw libraries differ in depth, whereas CPM/TPM columns sum
+# to a constant. This is what separates raw counts from integer-rounded
+# normalized values, which would otherwise look identical.
+COUNT_LIKE_LIBRARY_CV_MIN = 0.01
+
 
 def normalize_data_type(data_type: str) -> str:
     """Map aliases onto a canonical ``VALID_DATA_TYPES`` value."""
@@ -40,6 +61,129 @@ def normalize_data_type(data_type: str) -> str:
             f"{sorted(VALID_DATA_TYPES)} (alias: rnaseq → rnaseq_count)"
         )
     return dtype
+
+@dataclass(frozen=True)
+class MatrixScale:
+    """What the matrix values actually look like, independent of any label."""
+
+    n_values: int
+    min_value: float
+    max_value: float
+    frac_integer: float
+    has_negative: bool
+    library_size_cv: float
+    looks_like_counts: bool
+
+    def describe(self) -> str:
+        return (
+            f"min={self.min_value:.4g}, max={self.max_value:.4g}, "
+            f"integer fraction={self.frac_integer:.4f}, "
+            f"negative values={'yes' if self.has_negative else 'no'}, "
+            f"per-sample total CV={self.library_size_cv:.4g}"
+        )
+
+
+def describe_matrix_scale(matrix: pd.DataFrame) -> MatrixScale:
+    """Summarize the numeric scale of an expression matrix.
+
+    ``data_type`` is a declaration by the caller and is never checked against
+    the data anywhere else in the pipeline. This function supplies the evidence
+    needed to notice a mismatch.
+    """
+    values = matrix.to_numpy(dtype=float)
+    finite = values[np.isfinite(values)]
+    if finite.size == 0:
+        raise ValueError("Expression matrix contains no finite values")
+
+    frac_integer = float(np.mean(finite == np.round(finite)))
+    library_sizes = np.nansum(values, axis=0)
+    mean_library = float(np.mean(library_sizes))
+    library_cv = (
+        float(np.std(library_sizes) / mean_library) if mean_library else 0.0
+    )
+    has_negative = bool(finite.min() < 0)
+    max_value = float(finite.max())
+
+    looks_like_counts = (
+        not has_negative
+        and frac_integer >= INTEGER_FRACTION_MIN
+        and max_value >= COUNT_LIKE_MAX_VALUE_MIN
+        and library_cv >= COUNT_LIKE_LIBRARY_CV_MIN
+    )
+    return MatrixScale(
+        n_values=int(finite.size),
+        min_value=float(finite.min()),
+        max_value=max_value,
+        frac_integer=frac_integer,
+        has_negative=has_negative,
+        library_size_cv=library_cv,
+        looks_like_counts=looks_like_counts,
+    )
+
+
+def check_data_type_against_matrix(
+    matrix: pd.DataFrame,
+    data_type: str,
+    strict: bool = True,
+) -> MatrixScale:
+    """Verify that a declared ``data_type`` is consistent with the values.
+
+    Two different failure modes, so two different responses:
+
+    ``rnaseq_count`` declared for data that cannot be counts (negative or
+    largely non-integer) raises. Every count path is invalid for such input:
+    DESeq2 and edgeR require integers, and the TMM/logCPM step applied before
+    Wilcoxon testing assumes library-size scaling.
+
+    ``microarray``/``normalized`` declared for data that looks like raw counts
+    warns rather than raises, because the declaration may be deliberate and the
+    evidence is circumstantial. It matters because that branch skips
+    normalization entirely and reports ``log2FoldChange`` as a difference of
+    raw per-group means, which is not a log2 ratio, so a ``--abs-log2fc-min``
+    cutoff silently stops meaning "at least this fold change".
+
+    Set ``strict=False`` to downgrade the raising case to a warning.
+    """
+    dtype = normalize_data_type(data_type)
+    scale = describe_matrix_scale(matrix)
+
+    if dtype == "rnaseq_count":
+        problems = []
+        if scale.has_negative:
+            problems.append("negative values")
+        if scale.frac_integer < INTEGER_FRACTION_MIN:
+            problems.append(
+                f"non-integer values (only {scale.frac_integer:.1%} are integers)"
+            )
+        if problems:
+            message = (
+                f"data_type='rnaseq_count' declares raw counts, but the matrix has "
+                f"{' and '.join(problems)} ({scale.describe()}). "
+                "Counts are required here: DESeq2 and edgeR need integers, and "
+                "counts are TMM/logCPM-normalized before Wilcoxon testing. "
+                "For FPKM/TPM/RPKM or log-transformed data use "
+                "data_type='normalized'; for array intensities use "
+                "data_type='microarray'."
+            )
+            if strict:
+                raise ValueError(message)
+            warnings.warn(message, UserWarning, stacklevel=2)
+        return scale
+
+    if scale.looks_like_counts:
+        warnings.warn(
+            f"data_type={dtype!r} was declared, but the matrix looks like raw counts "
+            f"({scale.describe()}). Two consequences: the values are used as given, "
+            "with no library-size normalization, so per-sample sequencing depth "
+            "contributes to the comparison; and log2FoldChange is reported as a "
+            "difference of raw per-group means rather than a log2 ratio, so an "
+            "absolute log2 fold-change cutoff no longer selects on fold change. "
+            "Use data_type='rnaseq_count' for raw counts.",
+            UserWarning,
+            stacklevel=2,
+        )
+    return scale
+
 
 _PKG_ROOT = Path(__file__).resolve().parents[1]
 
@@ -375,6 +519,7 @@ def run_differential_expression(
     de_results_path: Optional[Union[str, Path]] = None,
     rscript_path: Optional[Union[str, Path]] = None,
     seed: int = 42,
+    check_data_type: bool = True,
 ) -> pd.DataFrame:
     """Run or load differential expression and write ``de_results.tsv``.
 
@@ -386,6 +531,10 @@ def run_differential_expression(
         or pass a callable ``(matrix, groups, data_type) -> DataFrame``.
     de_results_path:
         If provided, skip DE and load this precomputed table instead.
+    check_data_type:
+        Verify the declared ``data_type`` against the matrix values via
+        :func:`check_data_type_against_matrix`. Set ``False`` to skip the check
+        entirely.
     """
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -400,6 +549,9 @@ def run_differential_expression(
     matrix = read_expression_matrix(matrix_path)
     groups = read_group_table(groups_path)
     matrix, groups = subset_matrix_to_groups(matrix, groups)
+
+    if check_data_type:
+        check_data_type_against_matrix(matrix, data_type)
 
     if callable(backend):
         df = backend(matrix, groups, data_type)

@@ -1,11 +1,16 @@
 """Unit tests for DE filtering / top-k, method selection, and mock backend."""
 
+import warnings
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from orbit_ocsp.expression_de import (
+    COUNT_LIKE_LIBRARY_CV_MIN,
+    check_data_type_against_matrix,
+    describe_matrix_scale,
     filter_and_topk,
     filter_de_results,
     mock_de_from_matrix,
@@ -211,3 +216,157 @@ def test_missing_r_error_is_not_a_bare_filenotfound(tmp_path, monkeypatch):
     # subprocess raised instead.
     with pytest.raises(RuntimeError):
         ed._run_r_de(matrix, groups, "rnaseq_count", tmp_path / "out.tsv")
+
+
+# --- data_type vs matrix values --------------------------------------------
+# data_type is a caller declaration. Nothing else in the pipeline compares it
+# against the data, yet it decides whether counts are TMM/logCPM-normalized
+# before Wilcoxon testing, and therefore whether log2FoldChange is a log2 ratio
+# or a difference of raw per-group means.
+
+
+def _counts_frame(n_genes: int = 40, seed: int = 0) -> pd.DataFrame:
+    """Count-like matrix: integers, large maximum, uneven library sizes."""
+    rng = np.random.default_rng(seed)
+    base = rng.integers(0, 4000, size=(n_genes, 4))
+    # Unequal sequencing depth is what distinguishes raw counts from CPM/TPM.
+    depth = np.array([1.0, 1.6, 0.7, 1.3])
+    return pd.DataFrame(
+        (base * depth).astype(int),
+        index=[f"G{i}" for i in range(n_genes)],
+        columns=["S1", "S2", "S3", "S4"],
+    )
+
+
+def _cpm_frame(n_genes: int = 40, seed: int = 0) -> pd.DataFrame:
+    """Integer-rounded CPM: also integers, but every column sums to ~1e6."""
+    counts = _counts_frame(n_genes, seed=seed)
+    cpm = counts.divide(counts.sum(axis=0), axis=1) * 1e6
+    return cpm.round().astype(int)
+
+
+def test_describe_matrix_scale_flags_counts():
+    scale = describe_matrix_scale(_counts_frame())
+    assert scale.frac_integer == 1.0
+    assert not scale.has_negative
+    assert scale.library_size_cv > COUNT_LIKE_LIBRARY_CV_MIN
+    assert scale.looks_like_counts
+
+
+def test_describe_matrix_scale_does_not_flag_normalized_values():
+    """Integer-rounded CPM must not be mistaken for raw counts.
+
+    Both are non-negative integers, so the only usable discriminator is that
+    normalized columns share a common total.
+    """
+    scale = describe_matrix_scale(_cpm_frame())
+    assert scale.frac_integer == 1.0
+    assert scale.library_size_cv < COUNT_LIKE_LIBRARY_CV_MIN
+    assert not scale.looks_like_counts
+
+
+def test_describe_matrix_scale_rejects_all_nan():
+    frame = pd.DataFrame(
+        {"S1": [np.nan, np.nan], "S2": [np.nan, np.nan]}, index=["G1", "G2"]
+    )
+    with pytest.raises(ValueError, match="no finite values"):
+        describe_matrix_scale(frame)
+
+
+def test_counts_declared_but_values_are_not_integers_raises():
+    fpkm = _counts_frame().astype(float) / 7.0  # FPKM-like, non-integer
+    with pytest.raises(ValueError, match="declares raw counts"):
+        check_data_type_against_matrix(fpkm, "rnaseq_count")
+
+
+def test_counts_declared_but_values_are_negative_raises():
+    logratio = _counts_frame().astype(float)
+    logratio.iloc[0, 0] = -3.0
+    with pytest.raises(ValueError, match="negative values"):
+        check_data_type_against_matrix(logratio, "rnaseq_count")
+
+
+def test_counts_declared_error_names_the_alternatives():
+    """The message has to say what to declare instead, not just that it failed."""
+    fpkm = _counts_frame().astype(float) / 7.0
+    with pytest.raises(ValueError) as excinfo:
+        check_data_type_against_matrix(fpkm, "rnaseq_count")
+    message = str(excinfo.value)
+    assert "normalized" in message
+    assert "microarray" in message
+    assert "DESeq2" in message
+
+
+def test_counts_mismatch_downgrades_to_warning_when_not_strict():
+    fpkm = _counts_frame().astype(float) / 7.0
+    with pytest.warns(UserWarning, match="declares raw counts"):
+        check_data_type_against_matrix(fpkm, "rnaseq_count", strict=False)
+
+
+def test_normalized_declared_for_count_matrix_warns():
+    with pytest.warns(UserWarning, match="looks like raw counts"):
+        check_data_type_against_matrix(_counts_frame(), "normalized")
+
+
+def test_normalized_warning_explains_both_consequences():
+    with pytest.warns(UserWarning) as record:
+        check_data_type_against_matrix(_counts_frame(), "microarray")
+    message = str(record[0].message)
+    assert "no library-size normalization" in message
+    assert "log2 ratio" in message
+    assert "rnaseq_count" in message
+
+
+def test_normalized_declared_for_cpm_matrix_is_silent():
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # any warning fails the test
+        check_data_type_against_matrix(_cpm_frame(), "normalized")
+
+
+def test_valid_count_matrix_passes_silently():
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        scale = check_data_type_against_matrix(_counts_frame(), "rnaseq_count")
+    assert scale.looks_like_counts
+
+
+def test_run_differential_expression_validates_data_type(tmp_path):
+    """The check must fire through the public entry point, not only directly."""
+    matrix_path = tmp_path / "matrix.tsv"
+    groups_path = tmp_path / "groups.tsv"
+    (_counts_frame().astype(float) / 7.0).rename_axis("gene").to_csv(
+        matrix_path, sep="\t"
+    )
+    groups_path.write_text(
+        "sample_id\tgroup\nS1\tcase\nS2\tcase\nS3\tcontrol\nS4\tcontrol\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="declares raw counts"):
+        run_differential_expression(
+            matrix_path=matrix_path,
+            groups_path=groups_path,
+            data_type="rnaseq_count",
+            outdir=tmp_path / "out",
+            backend="mock",
+        )
+
+
+def test_check_data_type_false_skips_validation(tmp_path):
+    matrix_path = tmp_path / "matrix.tsv"
+    groups_path = tmp_path / "groups.tsv"
+    (_counts_frame().astype(float) / 7.0).rename_axis("gene").to_csv(
+        matrix_path, sep="\t"
+    )
+    groups_path.write_text(
+        "sample_id\tgroup\nS1\tcase\nS2\tcase\nS3\tcontrol\nS4\tcontrol\n",
+        encoding="utf-8",
+    )
+    de = run_differential_expression(
+        matrix_path=matrix_path,
+        groups_path=groups_path,
+        data_type="rnaseq_count",
+        outdir=tmp_path / "out",
+        backend="mock",
+        check_data_type=False,
+    )
+    assert not de.empty
