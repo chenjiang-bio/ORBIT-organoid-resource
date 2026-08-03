@@ -19,6 +19,12 @@ from orbit_ocsp.expression_de import (
     run_differential_expression,
 )
 from orbit_ocsp.protein_lookup import map_gene_ids_to_proteins, project_root
+from orbit_ocsp.b_terms_schema import (
+    DEFAULT_MODEL,
+    DEFAULT_PATHWAY_SOURCES,
+    count_condition_datasets,
+    resolve_min_dataset_freq,
+)
 
 _PKG_ROOT = project_root()
 
@@ -95,7 +101,7 @@ def load_condition_terms(
     condition: str,
     *,
     category: Optional[str] = None,
-    model: Optional[str] = None,
+    model: Optional[str] = DEFAULT_MODEL,
     model_condition: Optional[str] = None,
     model_control: Optional[str] = None,
     organ: Optional[str] = None,
@@ -116,14 +122,16 @@ def load_condition_terms(
     comparison_condition: Optional[str] = None,
     pathway_mode: str = "union",
     min_record_freq: int = 1,
-    min_dataset_freq: int = 1,
-    pathway_sources: Sequence[str] = ("enrich",),
+    min_dataset_freq: Optional[int] = None,
+    pathway_sources: Sequence[str] = DEFAULT_PATHWAY_SOURCES,
 ) -> List[str]:
     """Load pathway terms for one condition from current B_terms JSON.
 
     Supports paired filters: organ_condition/organ_control,
     source_condition/source_control, time_condition/time_control,
-    model_condition/model_control. Pathway default: ``pathway.enrich``.
+    model_condition/model_control. Pathway default: all of
+    ``pathway.{enrich,gsea,gsva}``. Model defaults to ``Organoid``.
+    ``min_dataset_freq=None`` auto-selects 6 for data-rich conditions, else 1.
     """
     from orbit_ocsp.b_terms_schema import load_condition_pathways
 
@@ -226,6 +234,10 @@ def default_score_gene(
     alpha: float = 0.005,
     seed: int = 42,
     semantic_term_cap: int = 100,
+    pathway_mode: str = "union",
+    pathway_sources: Sequence[str] = DEFAULT_PATHWAY_SOURCES,
+    min_dataset_freq: Optional[int] = None,
+    model: Optional[str] = DEFAULT_MODEL,
 ) -> Optional[dict]:
     """Score one gene with label-blind 50→999 semantic inference."""
     from orbit_ocsp.permutation_test_terms import (
@@ -239,7 +251,16 @@ def default_score_gene(
     a_terms = set(gene_pathways.get(gene, [])) & u_terms
     if not a_terms:
         return None
-    b_terms = set(load_condition_terms(b_terms_file, condition)) & u_terms
+    b_terms = set(
+        load_condition_terms(
+            b_terms_file,
+            condition,
+            model=model,
+            pathway_mode=pathway_mode,
+            pathway_sources=pathway_sources or DEFAULT_PATHWAY_SOURCES,
+            min_dataset_freq=min_dataset_freq,
+        )
+    ) & u_terms
     if not b_terms:
         return None
 
@@ -408,9 +429,21 @@ def run_expression_biomarker_pipeline(
     skip_scoring: bool = False,
     alpha: float = 0.005,
     seed: int = 42,
+    pathway_mode: str = "union",
+    pathway_sources: Sequence[str] = DEFAULT_PATHWAY_SOURCES,
+    min_dataset_freq: Optional[int] = None,
+    model: Optional[str] = DEFAULT_MODEL,
 ) -> List[dict]:
     """Run the full expression → biomarker prioritization pipeline."""
     data_type = normalize_data_type(data_type)
+    pathway_sources = (
+        tuple(pathway_sources) if pathway_sources else DEFAULT_PATHWAY_SOURCES
+    )
+    # Empty string disables the model filter; None keeps the Organoid default.
+    if model is None:
+        model = DEFAULT_MODEL
+    model = str(model).strip()
+
 
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -462,6 +495,8 @@ def run_expression_biomarker_pipeline(
     go_meta: dict = {}
     kegg_meta: dict = {}
     b_terms_path: Optional[Path] = None
+    n_condition_datasets = 0
+    resolved_min_dataset_freq: Optional[int] = None
     if not skip_scoring:
         merged_path = Path(
             merged_result
@@ -475,6 +510,16 @@ def run_expression_biomarker_pipeline(
         if not b_terms_path.exists():
             raise FileNotFoundError(f"B_terms file not found: {b_terms_path}")
         u_terms, go_meta, kegg_meta = load_universe_and_meta(scoring_species)
+        with open(b_terms_path, "r", encoding="utf-8") as handle:
+            b_records = json.load(handle)
+        if isinstance(b_records, dict):
+            b_records = [b_records]
+        n_condition_datasets = count_condition_datasets(
+            b_records, condition, model=model or None
+        )
+        resolved_min_dataset_freq = resolve_min_dataset_freq(
+            n_condition_datasets, min_dataset_freq
+        )
 
     scorer = score_fn or default_score_gene
     ranked: List[dict] = []
@@ -539,6 +584,10 @@ def run_expression_biomarker_pipeline(
                 species=scoring_species,
                 alpha=alpha,
                 seed=seed,
+                pathway_mode=pathway_mode,
+                pathway_sources=pathway_sources,
+                min_dataset_freq=resolved_min_dataset_freq,
+                model=model or None,
             )
         except TypeError:
             # Allow simpler mock scorers used in tests.
@@ -587,11 +636,17 @@ def run_expression_biomarker_pipeline(
         "n_topk": int(len(top_genes)),
         "n_ranked": int(len(ranked)),
         "condition": condition,
+        "model": model or None,
         "species": species_key,
         "data_type": data_type,
         "padj_max": padj_max,
         "abs_log2fc_min": abs_log2fc_min,
         "top_k": top_k,
+        "pathway_mode": pathway_mode,
+        "pathway_sources": list(pathway_sources),
+        "min_dataset_freq_requested": min_dataset_freq,
+        "min_dataset_freq": resolved_min_dataset_freq,
+        "n_condition_datasets": int(n_condition_datasets),
         "outputs": {
             "de_results": str(outdir / "de_results.tsv"),
             "topk_de_genes": str(top_path),
@@ -758,10 +813,20 @@ def run_genes_biomarker_pipeline(
     score_fn: Optional[ScoreFn] = None,
     alpha: float = 0.005,
     seed: int = 42,
+    pathway_mode: str = "union",
+    pathway_sources: Sequence[str] = DEFAULT_PATHWAY_SOURCES,
+    min_dataset_freq: Optional[int] = None,
+    model: Optional[str] = DEFAULT_MODEL,
 ) -> List[dict]:
     """Gene-list → pathway lookup → ensemble biomarker scoring (no DE)."""
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
+    pathway_sources = (
+        tuple(pathway_sources) if pathway_sources else DEFAULT_PATHWAY_SOURCES
+    )
+    if model is None:
+        model = DEFAULT_MODEL
+    model = str(model).strip()
 
     species_key = species.strip().lower()
     scoring_species = (
@@ -794,6 +859,16 @@ def run_genes_biomarker_pipeline(
     if not b_terms_path.exists():
         raise FileNotFoundError(f"B_terms file not found: {b_terms_path}")
     u_terms, go_meta, kegg_meta = load_universe_and_meta(scoring_species)
+    with open(b_terms_path, "r", encoding="utf-8") as handle:
+        b_records = json.load(handle)
+    if isinstance(b_records, dict):
+        b_records = [b_records]
+    n_condition_datasets = count_condition_datasets(
+        b_records, condition, model=model or None
+    )
+    resolved_min_dataset_freq = resolve_min_dataset_freq(
+        n_condition_datasets, min_dataset_freq
+    )
 
     scorer = score_fn or default_score_gene
     ranked: List[dict] = []
@@ -845,6 +920,10 @@ def run_genes_biomarker_pipeline(
                 species=scoring_species,
                 alpha=alpha,
                 seed=seed,
+                pathway_mode=pathway_mode,
+                pathway_sources=pathway_sources,
+                min_dataset_freq=resolved_min_dataset_freq,
+                model=model or None,
             )
         except TypeError:
             score = scorer(score_gene_key, condition)  # type: ignore[misc]
@@ -884,8 +963,14 @@ def run_genes_biomarker_pipeline(
         "n_input": int(len(query_ids)),
         "n_ranked": int(len(ranked)),
         "condition": condition,
+        "model": model or None,
         "species": species_key,
         "alpha": alpha,
+        "pathway_mode": pathway_mode,
+        "pathway_sources": list(pathway_sources),
+        "min_dataset_freq_requested": min_dataset_freq,
+        "min_dataset_freq": resolved_min_dataset_freq,
+        "n_condition_datasets": int(n_condition_datasets),
         "outputs": {},
     }
     write_biomarker_outputs(ranked, outdir, summary)
@@ -922,6 +1007,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--condition",
         required=True,
         help="B_terms condition filter (exact match, case-insensitive)",
+    )
+    parser.add_argument(
+        "--model",
+        default="Organoid",
+        help="B_terms model_condition filter (default: Organoid; empty to disable)",
     )
     parser.add_argument(
         "--species",
@@ -974,6 +1064,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="Primary hypergeometric significance threshold (product default 0.005)",
     )
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--pathway-mode",
+        choices=["union", "majority"],
+        default="union",
+        help="Aggregate B_terms pathways across datasets: union or majority",
+    )
+    parser.add_argument(
+        "--pathway-sources",
+        default="enrich,gsea,gsva",
+        help="Comma-separated B_terms pathway keys (default: enrich,gsea,gsva)",
+    )
+    parser.add_argument(
+        "--min-dataset-freq",
+        type=int,
+        default=None,
+        help=(
+            "Minimum datasets a pathway term must appear in "
+            "(default: auto — 6 if condition has >=30 datasets, else 1)"
+        ),
+    )
     return parser
 
 
@@ -986,6 +1096,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     except FileNotFoundError as exc:
         print(str(exc), file=sys.stderr)
         return 1
+
+    pathway_sources = [
+        p.strip() for p in str(args.pathway_sources).split(",") if p.strip()
+    ] or list(DEFAULT_PATHWAY_SOURCES)
 
     ranked = run_expression_biomarker_pipeline(
         matrix_path=args.matrix,
@@ -1005,6 +1119,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         skip_scoring=args.skip_scoring,
         alpha=args.alpha,
         seed=args.seed,
+        pathway_mode=args.pathway_mode,
+        pathway_sources=pathway_sources,
+        min_dataset_freq=args.min_dataset_freq,
+        model=args.model,
     )
     print(f"Ranked {len(ranked)} biomarker candidates")
     print(f"Results: {Path(args.outdir) / 'biomarker_ranked.json'}")

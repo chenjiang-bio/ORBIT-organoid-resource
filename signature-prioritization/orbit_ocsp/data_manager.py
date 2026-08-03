@@ -253,7 +253,8 @@ def download_data(
     # made the download land in the home directory while validation looked at the
     # environment variable's path — reporting success, or "already_present", for
     # a directory the tool never uses.
-    dest = (dest or _env_data_dir() or _user_data_dir()).expanduser().resolve()
+    dest = Path(dest) if dest is not None else (_env_data_dir() or _user_data_dir())
+    dest = dest.expanduser().resolve()
     archive_name = BUNDLE_ARCHIVE[species]
     base = (base_url or DEFAULT_RELEASE_BASE).rstrip("/") + "/"
     url = urljoin(base, archive_name)

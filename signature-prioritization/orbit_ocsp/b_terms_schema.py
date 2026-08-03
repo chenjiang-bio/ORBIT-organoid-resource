@@ -50,7 +50,66 @@ DEPRECATED_FIELDS = frozenset(
     }
 )
 
-DEFAULT_PATHWAY_SOURCES: tuple[str, ...] = ("enrich",)
+DEFAULT_PATHWAY_SOURCES: tuple[str, ...] = ("enrich", "gsea", "gsva")
+
+#: Product default for the experimental-arm model filter. Organoid is the
+#: primary ORBIT use case; pass ``model=""`` (or ``None`` into library APIs
+#: that you want unfiltered) to disable.
+DEFAULT_MODEL = "Organoid"
+
+#: Conditions with at least this many matched GSE IDs are treated as data-rich
+#: (Colorectal Cancer has 57 overall / 41 Organoid). Their auto
+#: ``min_dataset_freq`` is raised so single-study pathway noise is dropped.
+DATA_RICH_N_DATASETS = 30
+DATA_RICH_MIN_DATASET_FREQ = 6
+
+
+def default_min_dataset_freq(n_datasets: int) -> int:
+    """Choose an automatic dataset-frequency floor from matched coverage.
+
+    Data-rich conditions (dozens of GSE IDs, e.g. Colorectal Cancer) default
+    to 6. Sparse conditions keep 1 so the background is not emptied.
+    """
+    n = max(0, int(n_datasets or 0))
+    if n >= DATA_RICH_N_DATASETS:
+        return min(DATA_RICH_MIN_DATASET_FREQ, n)
+    return 1
+
+
+def resolve_min_dataset_freq(
+    n_datasets: int,
+    explicit: Optional[int] = None,
+) -> int:
+    """Return the effective ``min_dataset_freq``.
+
+    ``explicit=None`` selects :func:`default_min_dataset_freq`; any provided
+    integer is used as a hard floor (at least 1).
+    """
+    if explicit is None:
+        return default_min_dataset_freq(n_datasets)
+    return max(1, int(explicit))
+
+
+def count_condition_datasets(
+    records: Iterable[dict],
+    condition: str,
+    *,
+    model: Optional[str] = None,
+) -> int:
+    """Count unique GSE IDs among records matching ``condition`` (and model)."""
+    want = (condition or "").strip()
+    want_model = (model or "").strip()
+    gses: set[str] = set()
+    for obj in records:
+        if not isinstance(obj, dict):
+            continue
+        if want and not _norm_eq(str(obj.get("condition") or ""), want):
+            continue
+        if want_model and not _norm_eq(b_get(obj, "model_condition"), want_model):
+            continue
+        gse = str(obj.get("GSE_ID") or "").strip() or f"row:{id(obj)}"
+        gses.add(gse)
+    return len(gses)
 
 
 def _norm_eq(a: Optional[str], b: Optional[str]) -> bool:
@@ -258,7 +317,7 @@ def load_condition_pathways(
     condition: str,
     *,
     category: Optional[str] = None,
-    model: Optional[str] = None,
+    model: Optional[str] = DEFAULT_MODEL,
     model_condition: Optional[str] = None,
     model_control: Optional[str] = None,
     organ: Optional[str] = None,
@@ -280,7 +339,7 @@ def load_condition_pathways(
     pathway_sources: Sequence[str] = DEFAULT_PATHWAY_SOURCES,
     pathway_mode: str = "union",
     min_record_freq: int = 1,
-    min_dataset_freq: int = 1,
+    min_dataset_freq: Optional[int] = None,
 ) -> list[str]:
     """Filter B records and return pathway IDs.
 
@@ -288,6 +347,11 @@ def load_condition_pathways(
       - ``union``: any matching record (after min_* cuts on counts)
       - ``majority``: keep terms present in >= ceil(n_datasets/2) datasets,
         also respecting ``min_dataset_freq`` / ``min_record_freq`` floors
+
+    ``min_dataset_freq``:
+      - ``None`` (default): auto — 6 for data-rich conditions
+        (>= :data:`DATA_RICH_N_DATASETS` matched GSE IDs), else 1
+      - integer: hard floor (at least 1)
     """
     matched: list[dict] = []
     for obj in records:
@@ -324,10 +388,11 @@ def load_condition_pathways(
     if not matched:
         return []
 
+    sources = tuple(pathway_sources) if pathway_sources else DEFAULT_PATHWAY_SOURCES
     record_counts: Counter[str] = Counter()
     dataset_sets: dict[str, set[str]] = defaultdict(set)
     for obj in matched:
-        terms = b_pathway_terms(obj, sources=pathway_sources)
+        terms = b_pathway_terms(obj, sources=sources)
         gse = str(obj.get("GSE_ID") or "").strip() or f"row:{id(obj)}"
         for term in set(terms):
             record_counts[term] += 1
@@ -341,12 +406,13 @@ def load_condition_pathways(
         }
     )
 
+    floor_ds_requested = resolve_min_dataset_freq(n_datasets, min_dataset_freq)
     mode = (pathway_mode or "union").strip().lower()
     if mode == "majority":
         majority_cut = max(1, (n_datasets + 1) // 2)
-        floor_ds = max(int(min_dataset_freq or 1), majority_cut)
+        floor_ds = max(floor_ds_requested, majority_cut)
     else:
-        floor_ds = max(1, int(min_dataset_freq or 1))
+        floor_ds = floor_ds_requested
     floor_rec = max(1, int(min_record_freq or 1))
 
     kept = [

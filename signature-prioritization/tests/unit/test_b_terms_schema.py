@@ -89,8 +89,34 @@ def test_category_list_and_pathway_enrich():
     assert b_categories(SAMPLE) == ["Cell Biology"]
     assert b_category_match(SAMPLE, "Cell Biology")
     assert not b_category_match(SAMPLE, "Disease")
-    assert b_pathway_terms(SAMPLE) == ["GO:0000070", "GO:0000075"]
-    assert "GO:0000012" not in b_pathway_terms(SAMPLE)  # gsva excluded by default
+    # Default uses all pathway sources (enrich + gsea + gsva).
+    assert b_pathway_terms(SAMPLE) == [
+        "GO:0000070",
+        "GO:0000075",
+        "GO:0000086",
+        "GO:0000012",
+    ]
+    assert b_pathway_terms(SAMPLE, sources=("enrich",)) == [
+        "GO:0000070",
+        "GO:0000075",
+    ]
+    assert "GO:0000012" not in b_pathway_terms(SAMPLE, sources=("enrich",))
+
+
+def test_default_min_dataset_freq_is_data_rich_aware():
+    from orbit_ocsp.b_terms_schema import (
+        DATA_RICH_MIN_DATASET_FREQ,
+        DATA_RICH_N_DATASETS,
+        default_min_dataset_freq,
+        resolve_min_dataset_freq,
+    )
+
+    assert default_min_dataset_freq(DATA_RICH_N_DATASETS) == DATA_RICH_MIN_DATASET_FREQ
+    assert default_min_dataset_freq(DATA_RICH_N_DATASETS - 1) == 1
+    assert default_min_dataset_freq(57) == 6  # Colorectal Cancer scale
+    assert resolve_min_dataset_freq(57, None) == 6
+    assert resolve_min_dataset_freq(57, 2) == 2
+    assert resolve_min_dataset_freq(3, None) == 1
 
 
 def test_record_match_uses_real_fields():
@@ -122,7 +148,12 @@ def test_build_groups_and_read_b_with_current_schema():
         )
         key = ("Normal", "note", "Brain", "Organoid")
         assert key in groups
-        assert groups[key] == {"GO:0000070", "GO:0000075"}
+        assert groups[key] == {
+            "GO:0000070",
+            "GO:0000075",
+            "GO:0000086",
+            "GO:0000012",
+        }
         assert meta[key]["organ_condition"] == "Brain"
         assert meta[key]["organ_control"] == "Brain"
         assert meta[key]["source_control"] == "iPSCs"
@@ -144,7 +175,12 @@ def test_build_groups_and_read_b_with_current_schema():
             time_condition_filter="48 h",
             time_control_filter="48 h",
         )
-        assert kept == {"GO:0000070", "GO:0000075"}
+        assert kept == {
+            "GO:0000070",
+            "GO:0000075",
+            "GO:0000086",
+            "GO:0000012",
+        }
         assert dropped == []
     finally:
         Path(path).unlink(missing_ok=True)

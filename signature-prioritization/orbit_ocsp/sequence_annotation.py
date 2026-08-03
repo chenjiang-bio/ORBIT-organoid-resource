@@ -874,8 +874,22 @@ def _score_records(
     b_terms: Optional[PathLike],
     alpha: float,
     seed: int,
-) -> List[dict]:
-    """Score merged records with the existing ensemble engine."""
+    pathway_mode: str = "union",
+    pathway_sources: Sequence[str] = ("enrich", "gsea", "gsva"),
+    min_dataset_freq: Optional[int] = None,
+    model: Optional[str] = "Organoid",
+) -> Tuple[List[dict], dict]:
+    """Score merged records with the existing ensemble engine.
+
+    Returns ``(ranked_rows, score_meta)`` where ``score_meta`` records the
+    resolved pathway-background parameters.
+    """
+    from orbit_ocsp.b_terms_schema import (
+        DEFAULT_MODEL,
+        DEFAULT_PATHWAY_SOURCES,
+        count_condition_datasets,
+        resolve_min_dataset_freq,
+    )
     from orbit_ocsp.expression_pipeline import (
         _resolve_default,
         default_score_gene,
@@ -897,6 +911,30 @@ def _score_records(
 
     u_terms, go_meta, kegg_meta = load_universe_and_meta(scoring_species)
     gene_pathways = records_to_gene_pathways(records)
+    pathway_sources = (
+        tuple(pathway_sources) if pathway_sources else DEFAULT_PATHWAY_SOURCES
+    )
+    if model is None:
+        model = DEFAULT_MODEL
+    model = str(model).strip()
+    with open(b_terms_path, "r", encoding="utf-8") as handle:
+        b_records = json.load(handle)
+    if isinstance(b_records, dict):
+        b_records = [b_records]
+    n_condition_datasets = count_condition_datasets(
+        b_records, condition, model=model or None
+    )
+    resolved_min_dataset_freq = resolve_min_dataset_freq(
+        n_condition_datasets, min_dataset_freq
+    )
+    score_meta = {
+        "pathway_mode": pathway_mode,
+        "pathway_sources": list(pathway_sources),
+        "min_dataset_freq_requested": min_dataset_freq,
+        "min_dataset_freq": resolved_min_dataset_freq,
+        "n_condition_datasets": int(n_condition_datasets),
+        "model": model or None,
+    }
 
     ranked: List[dict] = []
     for record in records:
@@ -942,6 +980,10 @@ def _score_records(
                 species=scoring_species,
                 alpha=alpha,
                 seed=seed,
+                pathway_mode=pathway_mode,
+                pathway_sources=pathway_sources,
+                min_dataset_freq=resolved_min_dataset_freq,
+                model=model or None,
             )
         except Exception as exc:  # pragma: no cover - defensive
             row["scoring_status"] = f"error: {exc}"
@@ -975,7 +1017,7 @@ def _score_records(
     ranked.sort(key=_sort_key)
     for index, row in enumerate(ranked, start=1):
         row["biomarker_rank"] = index
-    return ranked
+    return ranked, score_meta
 
 
 def run_sequence_pipeline(
@@ -997,6 +1039,10 @@ def run_sequence_pipeline(
     alpha: float = 0.005,
     seed: int = 42,
     merge_only: bool = False,
+    pathway_mode: str = "union",
+    pathway_sources: Sequence[str] = ("enrich", "gsea", "gsva"),
+    min_dataset_freq: Optional[int] = None,
+    model: Optional[str] = "Organoid",
 ) -> dict:
     """Run sequence mode end to end.
 
@@ -1146,7 +1192,7 @@ def run_sequence_pipeline(
             "ranked": [],
         }
 
-    ranked = _score_records(
+    ranked, score_meta = _score_records(
         scorable,
         condition=condition,
         species=species,
@@ -1154,6 +1200,10 @@ def run_sequence_pipeline(
         b_terms=b_terms,
         alpha=alpha,
         seed=seed,
+        pathway_mode=pathway_mode,
+        pathway_sources=pathway_sources,
+        min_dataset_freq=min_dataset_freq,
+        model=model,
     )
 
     from orbit_ocsp.expression_pipeline import write_biomarker_outputs
@@ -1164,8 +1214,14 @@ def run_sequence_pipeline(
         "n_input": len(scorable),
         "n_ranked": len(ranked),
         "condition": condition,
+        "model": score_meta.get("model"),
         "species": species,
         "alpha": alpha,
+        "pathway_mode": score_meta["pathway_mode"],
+        "pathway_sources": score_meta["pathway_sources"],
+        "min_dataset_freq_requested": score_meta["min_dataset_freq_requested"],
+        "min_dataset_freq": score_meta["min_dataset_freq"],
+        "n_condition_datasets": score_meta["n_condition_datasets"],
         "merged_json": str(merged_path),
         "deepgo_min_score": deepgo_min_score,
         "outputs": {},

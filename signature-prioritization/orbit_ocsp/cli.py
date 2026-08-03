@@ -35,6 +35,18 @@ def _parse_genes(genes: Optional[str], genes_file: Optional[str]) -> List[str]:
     return uniq
 
 
+def _parse_pathway_sources(raw: Optional[str]) -> List[str]:
+    """Parse comma-separated B_terms pathway keys (default: enrich,gsea,gsva)."""
+    from orbit_ocsp.b_terms_schema import DEFAULT_PATHWAY_SOURCES
+
+    if raw is None or not str(raw).strip():
+        return list(DEFAULT_PATHWAY_SOURCES)
+    parts = [p.strip() for p in str(raw).split(",") if p.strip()]
+    if not parts:
+        raise ValueError("--pathway-sources must list at least one source")
+    return parts
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="orbit_ocsp",
@@ -56,6 +68,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     # shared
     p.add_argument("--condition", help="B_terms condition (e.g. \"Colorectal Cancer\")")
+    p.add_argument(
+        "--model",
+        default="Organoid",
+        help=(
+            "B_terms model_condition filter (default: Organoid). "
+            "Pass an empty string to disable the model filter."
+        ),
+    )
     p.add_argument("--species", default="hsa", help="hsa or mmu (default: hsa)")
     p.add_argument("--outdir", default="out_orbit-ocsp", help="Output directory")
     p.add_argument(
@@ -70,6 +90,33 @@ def build_parser() -> argparse.ArgumentParser:
         "--merged-result",
         default=None,
         help="Optional all_merged_result.json path",
+    )
+    p.add_argument(
+        "--pathway-mode",
+        choices=["union", "majority"],
+        default="union",
+        help=(
+            "How to aggregate condition pathway terms across matched B_terms "
+            "records: union (default) or majority across datasets"
+        ),
+    )
+    p.add_argument(
+        "--pathway-sources",
+        default="enrich,gsea,gsva",
+        help=(
+            "Comma-separated B_terms pathway keys to use "
+            "(default: enrich,gsea,gsva — all sources)"
+        ),
+    )
+    p.add_argument(
+        "--min-dataset-freq",
+        type=int,
+        default=None,
+        help=(
+            "Minimum datasets (GSE IDs) a pathway term must appear in. "
+            "Default: auto — 6 for data-rich conditions "
+            "(>=30 matched datasets, e.g. Colorectal Cancer), else 1"
+        ),
     )
 
     # expression
@@ -160,6 +207,12 @@ def _run_expression(args: argparse.Namespace) -> int:
         print(str(exc), file=sys.stderr)
         return 1
 
+    try:
+        pathway_sources = _parse_pathway_sources(args.pathway_sources)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
     ranked = run_expression_biomarker_pipeline(
         matrix_path=args.matrix,
         groups_path=args.groups,
@@ -177,6 +230,10 @@ def _run_expression(args: argparse.Namespace) -> int:
         skip_scoring=args.skip_scoring,
         alpha=args.alpha,
         seed=args.seed,
+        pathway_mode=args.pathway_mode,
+        pathway_sources=pathway_sources,
+        min_dataset_freq=args.min_dataset_freq,
+        model=args.model,
     )
     print(f"[expression] ranked {len(ranked)} genes")
     print(f"Results: {Path(args.outdir) / 'biomarker_ranked.json'}")
@@ -201,6 +258,12 @@ def _run_genes(args: argparse.Namespace) -> int:
         print(str(exc), file=sys.stderr)
         return 1
 
+    try:
+        pathway_sources = _parse_pathway_sources(args.pathway_sources)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
     ranked = run_genes_biomarker_pipeline(
         genes=gene_list,
         condition=args.condition,
@@ -210,6 +273,10 @@ def _run_genes(args: argparse.Namespace) -> int:
         b_terms=args.b_terms,
         alpha=args.alpha,
         seed=args.seed,
+        pathway_mode=args.pathway_mode,
+        pathway_sources=pathway_sources,
+        min_dataset_freq=args.min_dataset_freq,
+        model=args.model,
     )
     print(f"[genes] ranked {len(ranked)} genes")
     print(f"Results: {Path(args.outdir) / 'biomarker_ranked.json'}")
@@ -258,6 +325,12 @@ def _run_sequence(args: argparse.Namespace) -> int:
             return 1
 
     try:
+        pathway_sources = _parse_pathway_sources(args.pathway_sources)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    try:
         result = run_sequence_pipeline(
             condition=args.condition or "",
             outdir=args.outdir,
@@ -276,6 +349,10 @@ def _run_sequence(args: argparse.Namespace) -> int:
             alpha=args.alpha,
             seed=args.seed,
             merge_only=args.merge_only,
+            pathway_mode=args.pathway_mode,
+            pathway_sources=pathway_sources,
+            min_dataset_freq=args.min_dataset_freq,
+            model=args.model,
         )
     except SequenceInputError as exc:
         print(f"error: {exc}", file=sys.stderr)
