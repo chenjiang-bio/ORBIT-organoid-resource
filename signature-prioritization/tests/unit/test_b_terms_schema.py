@@ -186,6 +186,31 @@ def test_build_groups_and_read_b_with_current_schema():
         Path(path).unlink(missing_ok=True)
 
 
+def test_b_pathway_terms_combined_majority_single_method_fallback():
+    from orbit_ocsp.b_terms_schema import b_pathway_terms_combined
+
+    only_enrich = {
+        "pathway": {"enrich": ["GO:0000001", "GO:0000002"], "gsea": [], "gsva": []}
+    }
+    assert b_pathway_terms_combined(only_enrich, mode="majority") == [
+        "GO:0000001",
+        "GO:0000002",
+    ]
+    two = {
+        "pathway": {
+            "enrich": ["GO:0000001", "GO:0000002"],
+            "gsea": ["GO:0000001", "GO:0000003"],
+            "gsva": [],
+        }
+    }
+    assert b_pathway_terms_combined(two, mode="majority") == ["GO:0000001"]
+    assert set(b_pathway_terms_combined(two, mode="union")) == {
+        "GO:0000001",
+        "GO:0000002",
+        "GO:0000003",
+    }
+
+
 def test_load_condition_terms_majority_and_filters():
     recs = [
         {
@@ -220,7 +245,7 @@ def test_load_condition_terms_majority_and_filters():
         )
         assert terms == ["GO:0000001"]
 
-        # majority over 2 Organoid datasets → cut=1, but min_dataset_freq=2 → still only shared
+        # majority (per-record) + min_dataset_freq=2 → shared term only
         terms_m = load_condition_pathways(
             [r for r in recs if r["model_condition"] == "Organoid"],
             "Normal",

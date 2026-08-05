@@ -28,9 +28,13 @@ examples/
 └── orbit_ocsp_tutorial.ipynb   Runnable walkthrough of all modes
 ```
 
-All sample data is human (`--species hsa`). `--condition "Colorectal Cancer"`
-is used throughout because it exists in the shipped background library and
-matches the GSE50760 disease contrast.
+All sample data is human (`--species hsa`). Examples use
+`--condition "Colorectal Cancer"` because it exists in the shipped background
+library and matches the GSE50760 disease contrast. You may instead supply
+`--factor ...` alone (or combine both). Scoring defaults match the OCSP
+evaluation rule: `--pathway-mode majority` (per-record pairwise majority on
+enrich/gsea/gsva, with single-method fallback), auto `--min-dataset-freq`
+(6 for data-rich conditions such as CRC), and `--model Organoid`.
 
 ---
 

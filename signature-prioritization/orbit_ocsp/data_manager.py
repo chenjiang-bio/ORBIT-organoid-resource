@@ -20,7 +20,7 @@ from urllib.parse import urljoin
 import requests
 from tqdm import tqdm
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 #: Version of the *scoring data*, tracked separately from the package version.
 #: The data changes far less often than the code, and each bundle set is tens of

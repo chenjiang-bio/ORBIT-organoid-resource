@@ -7,7 +7,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence, Set, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Set, Union
 
 import pandas as pd
 
@@ -16,13 +16,18 @@ from orbit_ocsp.expression_de import (
     add_full_table_de_rank,
     filter_and_topk,
     normalize_data_type,
+    read_expression_matrix,
+    read_group_table,
+    resolve_data_type,
     run_differential_expression,
+    subset_matrix_to_groups,
 )
 from orbit_ocsp.protein_lookup import map_gene_ids_to_proteins, project_root
 from orbit_ocsp.b_terms_schema import (
     DEFAULT_MODEL,
     DEFAULT_PATHWAY_SOURCES,
     count_condition_datasets,
+    normalize_b_term_filters,
     resolve_min_dataset_freq,
 )
 
@@ -120,7 +125,7 @@ def load_condition_terms(
     additional_condition: Optional[str] = None,
     comparison_control: Optional[str] = None,
     comparison_condition: Optional[str] = None,
-    pathway_mode: str = "union",
+    pathway_mode: str = "majority",
     min_record_freq: int = 1,
     min_dataset_freq: Optional[int] = None,
     pathway_sources: Sequence[str] = DEFAULT_PATHWAY_SOURCES,
@@ -234,12 +239,19 @@ def default_score_gene(
     alpha: float = 0.005,
     seed: int = 42,
     semantic_term_cap: int = 100,
-    pathway_mode: str = "union",
+    pathway_mode: str = "majority",
     pathway_sources: Sequence[str] = DEFAULT_PATHWAY_SOURCES,
     min_dataset_freq: Optional[int] = None,
     model: Optional[str] = DEFAULT_MODEL,
+    category: Optional[str] = None,
+    b_filters: Optional[Mapping[str, Any]] = None,
 ) -> Optional[dict]:
-    """Score one gene with label-blind 50→999 semantic inference."""
+    """Score one gene with label-blind 50→999 semantic inference.
+
+    ``b_filters`` carries optional B_terms metadata filters (factor, organ_*,
+    source_*, cell_type, time_*, comparison_*, additional_condition, …).
+    ``category`` / ``model`` remain first-class for backward compatibility.
+    """
     from orbit_ocsp.permutation_test_terms import (
         _configure_go_resources,
         _ensemble_calculate_consensus,
@@ -251,14 +263,26 @@ def default_score_gene(
     a_terms = set(gene_pathways.get(gene, [])) & u_terms
     if not a_terms:
         return None
+
+    filter_kwargs = dict(b_filters or {})
+    if category is not None and "category" not in filter_kwargs:
+        filter_kwargs["category"] = category
+    if (
+        model is not None
+        and "model" not in filter_kwargs
+        and "model_condition" not in filter_kwargs
+    ):
+        filter_kwargs["model"] = model
+    filters = normalize_b_term_filters(**filter_kwargs)
+
     b_terms = set(
         load_condition_terms(
             b_terms_file,
             condition,
-            model=model,
             pathway_mode=pathway_mode,
             pathway_sources=pathway_sources or DEFAULT_PATHWAY_SOURCES,
             min_dataset_freq=min_dataset_freq,
+            **filters,
         )
     ) & u_terms
     if not b_terms:
@@ -413,8 +437,8 @@ def default_score_gene(
 def run_expression_biomarker_pipeline(
     matrix_path: Union[str, Path],
     groups_path: Union[str, Path],
-    data_type: str,
-    condition: str,
+    data_type: Optional[str] = None,
+    condition: str = "",
     species: str = "hsa",
     top_k: int = 20,
     padj_max: float = 0.05,
@@ -429,13 +453,22 @@ def run_expression_biomarker_pipeline(
     skip_scoring: bool = False,
     alpha: float = 0.005,
     seed: int = 42,
-    pathway_mode: str = "union",
+    pathway_mode: str = "majority",
     pathway_sources: Sequence[str] = DEFAULT_PATHWAY_SOURCES,
     min_dataset_freq: Optional[int] = None,
     model: Optional[str] = DEFAULT_MODEL,
+    category: Optional[str] = None,
+    b_filters: Optional[Mapping[str, Any]] = None,
 ) -> List[dict]:
-    """Run the full expression → biomarker prioritization pipeline."""
-    data_type = normalize_data_type(data_type)
+    """Run the full expression → biomarker prioritization pipeline.
+
+    ``data_type`` may be omitted: it is inferred from the matrix (and
+    count-like matrices wrongly labeled ``normalized``/``microarray`` are
+    corrected to ``rnaseq_count``).
+
+    ``b_filters`` optionally restricts the B_terms background (factor,
+    organ_condition/organ_control, source_*, cell_type, time_*, …).
+    """
     pathway_sources = (
         tuple(pathway_sources) if pathway_sources else DEFAULT_PATHWAY_SOURCES
     )
@@ -443,7 +476,17 @@ def run_expression_biomarker_pipeline(
     if model is None:
         model = DEFAULT_MODEL
     model = str(model).strip()
+    category = (str(category).strip() or None) if category is not None else None
+    filter_kwargs = dict(b_filters or {})
+    if category is not None and "category" not in filter_kwargs:
+        filter_kwargs["category"] = category
+    if "model" not in filter_kwargs and "model_condition" not in filter_kwargs:
+        filter_kwargs["model"] = model
+    b_filters_resolved = normalize_b_term_filters(**filter_kwargs)
 
+    factor = str((b_filters_resolved or {}).get("factor") or "").strip()
+    if not str(condition or "").strip() and not factor:
+        raise ValueError("either condition or factor is required")
 
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -457,6 +500,18 @@ def run_expression_biomarker_pipeline(
         else species_key
     )
 
+    # Resolve once up front so pipeline_summary records the effective type,
+    # including auto-inference / count-mismatch correction.
+    if de_results_path is None:
+        matrix = read_expression_matrix(matrix_path)
+        groups = read_group_table(groups_path)
+        matrix, groups = subset_matrix_to_groups(matrix, groups)
+        data_type, _scale = resolve_data_type(matrix, data_type)
+    elif data_type is None or not str(data_type).strip():
+        data_type = "rnaseq_count"  # unused for DE when results are precomputed
+    else:
+        data_type = normalize_data_type(data_type)
+
     de_table = run_differential_expression(
         matrix_path=matrix_path,
         groups_path=groups_path,
@@ -465,6 +520,8 @@ def run_expression_biomarker_pipeline(
         backend=de_backend,
         de_results_path=de_results_path,
         seed=seed,
+        # Already resolved above; avoid double-warning on count overrides.
+        check_data_type=False,
     )
     top_genes = filter_and_topk(
         de_table,
@@ -515,7 +572,14 @@ def run_expression_biomarker_pipeline(
         if isinstance(b_records, dict):
             b_records = [b_records]
         n_condition_datasets = count_condition_datasets(
-            b_records, condition, model=model or None
+            b_records,
+            condition,
+            model=b_filters_resolved.get("model"),
+            **{
+                k: v
+                for k, v in b_filters_resolved.items()
+                if k not in {"model"}
+            },
         )
         resolved_min_dataset_freq = resolve_min_dataset_freq(
             n_condition_datasets, min_dataset_freq
@@ -587,7 +651,9 @@ def run_expression_biomarker_pipeline(
                 pathway_mode=pathway_mode,
                 pathway_sources=pathway_sources,
                 min_dataset_freq=resolved_min_dataset_freq,
-                model=model or None,
+                model=b_filters_resolved.get("model", model or None),
+                category=b_filters_resolved.get("category", category),
+                b_filters=b_filters_resolved,
             )
         except TypeError:
             # Allow simpler mock scorers used in tests.
@@ -636,7 +702,9 @@ def run_expression_biomarker_pipeline(
         "n_topk": int(len(top_genes)),
         "n_ranked": int(len(ranked)),
         "condition": condition,
-        "model": model or None,
+        "category": b_filters_resolved.get("category", category),
+        "b_filters": b_filters_resolved,
+        "model": b_filters_resolved.get("model", model or None),
         "species": species_key,
         "data_type": data_type,
         "padj_max": padj_max,
@@ -813,10 +881,12 @@ def run_genes_biomarker_pipeline(
     score_fn: Optional[ScoreFn] = None,
     alpha: float = 0.005,
     seed: int = 42,
-    pathway_mode: str = "union",
+    pathway_mode: str = "majority",
     pathway_sources: Sequence[str] = DEFAULT_PATHWAY_SOURCES,
     min_dataset_freq: Optional[int] = None,
     model: Optional[str] = DEFAULT_MODEL,
+    category: Optional[str] = None,
+    b_filters: Optional[Mapping[str, Any]] = None,
 ) -> List[dict]:
     """Gene-list → pathway lookup → ensemble biomarker scoring (no DE)."""
     outdir = Path(outdir)
@@ -827,6 +897,17 @@ def run_genes_biomarker_pipeline(
     if model is None:
         model = DEFAULT_MODEL
     model = str(model).strip()
+    category = (str(category).strip() or None) if category is not None else None
+    filter_kwargs = dict(b_filters or {})
+    if category is not None and "category" not in filter_kwargs:
+        filter_kwargs["category"] = category
+    if "model" not in filter_kwargs and "model_condition" not in filter_kwargs:
+        filter_kwargs["model"] = model
+    b_filters_resolved = normalize_b_term_filters(**filter_kwargs)
+
+    factor = str((b_filters_resolved or {}).get("factor") or "").strip()
+    if not str(condition or "").strip() and not factor:
+        raise ValueError("either condition or factor is required")
 
     species_key = species.strip().lower()
     scoring_species = (
@@ -864,7 +945,10 @@ def run_genes_biomarker_pipeline(
     if isinstance(b_records, dict):
         b_records = [b_records]
     n_condition_datasets = count_condition_datasets(
-        b_records, condition, model=model or None
+        b_records,
+        condition,
+        model=b_filters_resolved.get("model"),
+        **{k: v for k, v in b_filters_resolved.items() if k != "model"},
     )
     resolved_min_dataset_freq = resolve_min_dataset_freq(
         n_condition_datasets, min_dataset_freq
@@ -923,7 +1007,9 @@ def run_genes_biomarker_pipeline(
                 pathway_mode=pathway_mode,
                 pathway_sources=pathway_sources,
                 min_dataset_freq=resolved_min_dataset_freq,
-                model=model or None,
+                model=b_filters_resolved.get("model", model or None),
+                category=b_filters_resolved.get("category", category),
+                b_filters=b_filters_resolved,
             )
         except TypeError:
             score = scorer(score_gene_key, condition)  # type: ignore[misc]
@@ -963,7 +1049,9 @@ def run_genes_biomarker_pipeline(
         "n_input": int(len(query_ids)),
         "n_ranked": int(len(ranked)),
         "condition": condition,
-        "model": model or None,
+        "category": b_filters_resolved.get("category", category),
+        "b_filters": b_filters_resolved,
+        "model": b_filters_resolved.get("model", model or None),
         "species": species_key,
         "alpha": alpha,
         "pathway_mode": pathway_mode,
@@ -995,18 +1083,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--data-type",
-        required=True,
+        default=None,
         choices=sorted(VALID_DATA_TYPES | {"rnaseq"}),
         help=(
-            "Expression data type (rnaseq → rnaseq_count). R engine auto-selects "
-            "by sample size: 1vs1→edgeR; both n>8→Wilcoxon; else DESeq2 (counts) "
-            "or limma"
+            "Expression data type (rnaseq → rnaseq_count). Optional: when omitted, "
+            "inferred from the matrix (counts→rnaseq_count, negatives→microarray, "
+            "else normalized). Count-like matrices declared as normalized/"
+            "microarray are auto-corrected to rnaseq_count. R engine then "
+            "auto-selects by sample size: 1vs1→edgeR; both n>8→Wilcoxon; else "
+            "DESeq2 (counts) or limma"
         ),
     )
     parser.add_argument(
         "--condition",
         required=True,
         help="B_terms condition filter (exact match, case-insensitive)",
+    )
+    parser.add_argument(
+        "--category",
+        default=None,
+        help='B_terms category filter (e.g. "Drug Screening"); omit for all',
     )
     parser.add_argument(
         "--model",
@@ -1067,8 +1163,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--pathway-mode",
         choices=["union", "majority"],
-        default="union",
-        help="Aggregate B_terms pathways across datasets: union or majority",
+        default="majority",
+        help="Per-record pathway combine: majority (default, paper) or union; then min-dataset-freq",
     )
     parser.add_argument(
         "--pathway-sources",
@@ -1123,6 +1219,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         pathway_sources=pathway_sources,
         min_dataset_freq=args.min_dataset_freq,
         model=args.model,
+        category=getattr(args, "category", None),
     )
     print(f"Ranked {len(ranked)} biomarker candidates")
     print(f"Results: {Path(args.outdir) / 'biomarker_ranked.json'}")

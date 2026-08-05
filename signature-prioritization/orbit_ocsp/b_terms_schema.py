@@ -95,21 +95,89 @@ def count_condition_datasets(
     condition: str,
     *,
     model: Optional[str] = None,
+    **filters: Any,
 ) -> int:
-    """Count unique GSE IDs among records matching ``condition`` (and model)."""
-    want = (condition or "").strip()
+    """Count unique GSE IDs among records matching ``condition`` and filters.
+
+    Extra ``filters`` are forwarded to :func:`b_record_matches` (category,
+    organ_condition, factor, …). Empty / omitted filters are ignored.
+    """
     want_model = (model or "").strip()
+    match_kwargs = {
+        key: ("" if value is None else str(value))
+        for key, value in filters.items()
+    }
+    # Prefer explicit model_condition from filters; else use ``model``.
+    if want_model and not str(match_kwargs.get("model_condition") or "").strip():
+        match_kwargs["model"] = want_model
     gses: set[str] = set()
     for obj in records:
         if not isinstance(obj, dict):
             continue
-        if want and not _norm_eq(str(obj.get("condition") or ""), want):
-            continue
-        if want_model and not _norm_eq(b_get(obj, "model_condition"), want_model):
+        if not b_record_matches(
+            obj,
+            condition=condition or "",
+            **match_kwargs,
+        ):
             continue
         gse = str(obj.get("GSE_ID") or "").strip() or f"row:{id(obj)}"
         gses.add(gse)
     return len(gses)
+
+
+# Optional B_terms metadata filters exposed to CLI / pipelines. ``condition``
+# is required separately; ``model`` remains the Organoid default alias for
+# ``model_condition``.
+B_TERM_FILTER_KEYS: tuple[str, ...] = (
+    "category",
+    "model",
+    "model_condition",
+    "model_control",
+    "organ",
+    "organ_condition",
+    "organ_control",
+    "organ_system_condition",
+    "organ_system_control",
+    "factor",
+    "source",
+    "source_condition",
+    "source_control",
+    "cell_type",
+    "time",
+    "time_condition",
+    "time_control",
+    "additional_condition",
+    "comparison_control",
+    "comparison_condition",
+)
+
+
+def coerce_optional_str(value: Any) -> Optional[str]:
+    """Strip strings; treat None / blank as absent."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def normalize_b_term_filters(**kwargs: Any) -> dict[str, str]:
+    """Keep only known B_terms filter fields.
+
+    ``None`` is dropped. Blank strings are dropped except for ``model`` /
+    ``model_condition``, where blank means "do not filter on model".
+    """
+    out: dict[str, str] = {}
+    for key in B_TERM_FILTER_KEYS:
+        if key not in kwargs:
+            continue
+        value = kwargs.get(key)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if not text and key not in {"model", "model_condition"}:
+            continue
+        out[key] = text
+    return out
 
 
 def _norm_eq(a: Optional[str], b: Optional[str]) -> bool:
@@ -172,10 +240,13 @@ def b_pathway_terms(
     obj: dict,
     sources: Sequence[str] = DEFAULT_PATHWAY_SOURCES,
 ) -> list[str]:
-    """Extract pathway term IDs from a B record.
+    """Extract pathway term IDs from a B record (union across ``sources``).
 
     Prefer ``pathway.enrich`` (default). Legacy list/string ``pathway`` is supported.
     Does not flatten dicts via ``str()``.
+
+    For evaluation / Analysis defaults use :func:`b_pathway_terms_combined`
+    with ``mode="majority"`` instead.
     """
     raw = obj.get("pathway")
     if raw is None:
@@ -197,6 +268,55 @@ def b_pathway_terms(
         return out
 
     return _as_term_list(raw)
+
+
+def b_pathway_terms_combined(
+    obj: dict,
+    *,
+    mode: str = "majority",
+    sources: Sequence[str] = DEFAULT_PATHWAY_SOURCES,
+) -> list[str]:
+    """Per-record pathway combine matching the OCSP evaluation freeze.
+
+    ``mode``:
+      - ``majority`` (default / paper): pairwise intersection then union across
+        non-empty method lists among ``sources`` (typically enrich/gsea/gsva).
+        If only one method list is non-empty, keep that list (single-method
+        fallback used in the Jul 2026 CRC evaluation).
+      - ``union``: union of all listed sources (legacy wide background).
+    """
+    raw = obj.get("pathway")
+    if raw is None:
+        raw = obj.get("pathways")
+    if raw is None:
+        return []
+
+    mode_key = (mode or "majority").strip().lower()
+    if not isinstance(raw, dict):
+        # Legacy flat pathway list: treat as a single method set.
+        return _as_term_list(raw)
+
+    method_sets: list[set[str]] = []
+    for src in sources:
+        chunk = set(_as_term_list(raw.get(src)))
+        if chunk:
+            method_sets.append(chunk)
+
+    if not method_sets:
+        return []
+    if mode_key == "union":
+        out: set[str] = set()
+        for s in method_sets:
+            out |= s
+        return sorted(out)
+    # majority
+    if len(method_sets) == 1:
+        return sorted(method_sets[0])
+    out = set()
+    for i in range(len(method_sets)):
+        for j in range(i + 1, len(method_sets)):
+            out |= method_sets[i] & method_sets[j]
+    return sorted(out)
 
 
 def _as_term_list(value: Any) -> list[str]:
@@ -337,16 +457,18 @@ def load_condition_pathways(
     comparison_control: Optional[str] = None,
     comparison_condition: Optional[str] = None,
     pathway_sources: Sequence[str] = DEFAULT_PATHWAY_SOURCES,
-    pathway_mode: str = "union",
+    pathway_mode: str = "majority",
     min_record_freq: int = 1,
     min_dataset_freq: Optional[int] = None,
 ) -> list[str]:
     """Filter B records and return pathway IDs.
 
-    ``pathway_mode``:
-      - ``union``: any matching record (after min_* cuts on counts)
-      - ``majority``: keep terms present in >= ceil(n_datasets/2) datasets,
-        also respecting ``min_dataset_freq`` / ``min_record_freq`` floors
+    ``pathway_mode`` (matches OCSP evaluation / Analysis defaults):
+      - ``majority`` (default): per-record pairwise majority on enrich/gsea/gsva
+        (single non-empty method kept), then retain terms supported by at least
+        ``min_dataset_freq`` independent GSE series
+      - ``union``: per-record union of pathway sources, then the same
+        ``min_dataset_freq`` recurrence cut
 
     ``min_dataset_freq``:
       - ``None`` (default): auto — 6 for data-rich conditions
@@ -389,10 +511,14 @@ def load_condition_pathways(
         return []
 
     sources = tuple(pathway_sources) if pathway_sources else DEFAULT_PATHWAY_SOURCES
+    mode = (pathway_mode or "majority").strip().lower()
+    per_record_mode = "majority" if mode == "majority" else "union"
     record_counts: Counter[str] = Counter()
     dataset_sets: dict[str, set[str]] = defaultdict(set)
     for obj in matched:
-        terms = b_pathway_terms(obj, sources=sources)
+        terms = b_pathway_terms_combined(
+            obj, mode=per_record_mode, sources=sources
+        )
         gse = str(obj.get("GSE_ID") or "").strip() or f"row:{id(obj)}"
         for term in set(terms):
             record_counts[term] += 1
@@ -406,13 +532,7 @@ def load_condition_pathways(
         }
     )
 
-    floor_ds_requested = resolve_min_dataset_freq(n_datasets, min_dataset_freq)
-    mode = (pathway_mode or "union").strip().lower()
-    if mode == "majority":
-        majority_cut = max(1, (n_datasets + 1) // 2)
-        floor_ds = max(floor_ds_requested, majority_cut)
-    else:
-        floor_ds = floor_ds_requested
+    floor_ds = resolve_min_dataset_freq(n_datasets, min_dataset_freq)
     floor_rec = max(1, int(min_record_freq or 1))
 
     kept = [

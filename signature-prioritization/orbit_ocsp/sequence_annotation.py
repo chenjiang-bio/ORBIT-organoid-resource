@@ -874,10 +874,12 @@ def _score_records(
     b_terms: Optional[PathLike],
     alpha: float,
     seed: int,
-    pathway_mode: str = "union",
+    pathway_mode: str = "majority",
     pathway_sources: Sequence[str] = ("enrich", "gsea", "gsva"),
     min_dataset_freq: Optional[int] = None,
     model: Optional[str] = "Organoid",
+    category: Optional[str] = None,
+    b_filters: Optional[dict] = None,
 ) -> Tuple[List[dict], dict]:
     """Score merged records with the existing ensemble engine.
 
@@ -888,6 +890,7 @@ def _score_records(
         DEFAULT_MODEL,
         DEFAULT_PATHWAY_SOURCES,
         count_condition_datasets,
+        normalize_b_term_filters,
         resolve_min_dataset_freq,
     )
     from orbit_ocsp.expression_pipeline import (
@@ -917,12 +920,21 @@ def _score_records(
     if model is None:
         model = DEFAULT_MODEL
     model = str(model).strip()
+    filter_kwargs = dict(b_filters or {})
+    if category is not None and "category" not in filter_kwargs:
+        filter_kwargs["category"] = category
+    if "model" not in filter_kwargs and "model_condition" not in filter_kwargs:
+        filter_kwargs["model"] = model
+    b_filters_resolved = normalize_b_term_filters(**filter_kwargs)
     with open(b_terms_path, "r", encoding="utf-8") as handle:
         b_records = json.load(handle)
     if isinstance(b_records, dict):
         b_records = [b_records]
     n_condition_datasets = count_condition_datasets(
-        b_records, condition, model=model or None
+        b_records,
+        condition,
+        model=b_filters_resolved.get("model"),
+        **{k: v for k, v in b_filters_resolved.items() if k != "model"},
     )
     resolved_min_dataset_freq = resolve_min_dataset_freq(
         n_condition_datasets, min_dataset_freq
@@ -933,7 +945,9 @@ def _score_records(
         "min_dataset_freq_requested": min_dataset_freq,
         "min_dataset_freq": resolved_min_dataset_freq,
         "n_condition_datasets": int(n_condition_datasets),
-        "model": model or None,
+        "model": b_filters_resolved.get("model", model or None),
+        "category": b_filters_resolved.get("category", category),
+        "b_filters": b_filters_resolved,
     }
 
     ranked: List[dict] = []
@@ -983,7 +997,9 @@ def _score_records(
                 pathway_mode=pathway_mode,
                 pathway_sources=pathway_sources,
                 min_dataset_freq=resolved_min_dataset_freq,
-                model=model or None,
+                model=b_filters_resolved.get("model", model or None),
+                category=b_filters_resolved.get("category", category),
+                b_filters=b_filters_resolved,
             )
         except Exception as exc:  # pragma: no cover - defensive
             row["scoring_status"] = f"error: {exc}"
@@ -1039,10 +1055,12 @@ def run_sequence_pipeline(
     alpha: float = 0.005,
     seed: int = 42,
     merge_only: bool = False,
-    pathway_mode: str = "union",
+    pathway_mode: str = "majority",
     pathway_sources: Sequence[str] = ("enrich", "gsea", "gsva"),
     min_dataset_freq: Optional[int] = None,
     model: Optional[str] = "Organoid",
+    category: Optional[str] = None,
+    b_filters: Optional[dict] = None,
 ) -> dict:
     """Run sequence mode end to end.
 
@@ -1204,6 +1222,8 @@ def run_sequence_pipeline(
         pathway_sources=pathway_sources,
         min_dataset_freq=min_dataset_freq,
         model=model,
+        category=category,
+        b_filters=b_filters,
     )
 
     from orbit_ocsp.expression_pipeline import write_biomarker_outputs
