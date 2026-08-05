@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2]
+
+### Changed
+- **Default background rule now matches the OCSP evaluation / paper setting.**
+  `--pathway-mode` defaults to `majority`: per-record pairwise majority on
+  enrich / gsea / gsva (a single non-empty method list is kept), then the
+  automatic GSE recurrence cut (`min-dataset-freq` auto = 6 for data-rich
+  conditions such as colorectal cancer). Previously the default was `union`,
+  which inflated CRC backgrounds to ~10k terms and did not reproduce the
+  deposited evaluation (`|B|` stored 1636 / effective 1629).
+- Background filters accept **either** `--condition` **or** `--factor`
+  (one is enough; both may be combined).
+
+### Documentation
+- Tutorial notebook and `examples/README.md` describe the new defaults and the
+  condition-or-factor requirement.
+
 ## [0.1.1]
 
 ### Changed

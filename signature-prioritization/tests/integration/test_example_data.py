@@ -199,10 +199,10 @@ class TestExpressionMode:
 # ---------------------------------------------------------------------------
 
 class TestGenesMode:
-    def test_condition_is_required(self):
+    def test_condition_or_factor_is_required(self):
         proc = run_cli("--mode", "genes", "--genes", "CD44")
         assert proc.returncode == 2
-        assert "--condition" in proc.stderr
+        assert "--condition" in proc.stderr or "--factor" in proc.stderr
 
     @needs_scoring_data
     @pytest.mark.parametrize(

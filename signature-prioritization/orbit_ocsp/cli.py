@@ -47,6 +47,137 @@ def _parse_pathway_sources(raw: Optional[str]) -> List[str]:
     return parts
 
 
+def _add_b_term_filter_arguments(p: argparse.ArgumentParser) -> None:
+    """B_terms metadata filters shared by expression / genes / sequence."""
+    p.add_argument(
+        "--factor",
+        default=None,
+        help=(
+            "B_terms factor filter (e.g. IFN-γ, Baricitinib). "
+            "Required unless --condition is set (either condition or factor)."
+        ),
+    )
+    p.add_argument(
+        "--organ-condition",
+        default=None,
+        help="B_terms organ_condition filter (experimental arm)",
+    )
+    p.add_argument(
+        "--organ-control",
+        default=None,
+        help="B_terms organ_control filter",
+    )
+    p.add_argument(
+        "--organ-system-condition",
+        default=None,
+        help="B_terms organ_system_condition filter (list membership)",
+    )
+    p.add_argument(
+        "--organ-system-control",
+        default=None,
+        help="B_terms organ_system_control filter (list membership)",
+    )
+    p.add_argument(
+        "--source-condition",
+        default=None,
+        help="B_terms source_condition filter (e.g. ESCs)",
+    )
+    p.add_argument(
+        "--source-control",
+        default=None,
+        help="B_terms source_control filter",
+    )
+    p.add_argument(
+        "--additional-condition",
+        default=None,
+        help="B_terms additional_condition filter",
+    )
+    p.add_argument(
+        "--comparison-condition",
+        default=None,
+        help="B_terms comparison_condition filter",
+    )
+    p.add_argument(
+        "--comparison-control",
+        default=None,
+        help="B_terms comparison_control filter",
+    )
+    p.add_argument(
+        "--cell-type",
+        default=None,
+        help="B_terms cell_type filter",
+    )
+    p.add_argument(
+        "--time-condition",
+        default=None,
+        help="B_terms time_condition filter (experimental arm)",
+    )
+    p.add_argument(
+        "--time-control",
+        default=None,
+        help="B_terms time_control filter",
+    )
+    p.add_argument(
+        "--model-condition",
+        default=None,
+        help=(
+            "B_terms model_condition filter; overrides --model when set"
+        ),
+    )
+    p.add_argument(
+        "--model-control",
+        default=None,
+        help="B_terms model_control filter",
+    )
+
+
+def _b_filters_from_args(args: argparse.Namespace) -> dict:
+    """Collect optional B_terms filters from parsed CLI args."""
+    from orbit_ocsp.b_terms_schema import normalize_b_term_filters
+
+    raw = {
+        "category": getattr(args, "category", None),
+        "model": getattr(args, "model", None),
+        "model_condition": getattr(args, "model_condition", None),
+        "model_control": getattr(args, "model_control", None),
+        "factor": getattr(args, "factor", None),
+        "organ_condition": getattr(args, "organ_condition", None),
+        "organ_control": getattr(args, "organ_control", None),
+        "organ_system_condition": getattr(args, "organ_system_condition", None),
+        "organ_system_control": getattr(args, "organ_system_control", None),
+        "source_condition": getattr(args, "source_condition", None),
+        "source_control": getattr(args, "source_control", None),
+        "additional_condition": getattr(args, "additional_condition", None),
+        "comparison_condition": getattr(args, "comparison_condition", None),
+        "comparison_control": getattr(args, "comparison_control", None),
+        "cell_type": getattr(args, "cell_type", None),
+        "time_condition": getattr(args, "time_condition", None),
+        "time_control": getattr(args, "time_control", None),
+    }
+    # --model-condition wins over --model when both are present.
+    if raw.get("model_condition"):
+        raw["model"] = None
+    return normalize_b_term_filters(**raw)
+
+
+def _has_condition_or_factor(args: argparse.Namespace) -> bool:
+    cond = str(getattr(args, "condition", None) or "").strip()
+    factor = str(getattr(args, "factor", None) or "").strip()
+    return bool(cond or factor)
+
+
+def _require_condition_or_factor(args: argparse.Namespace, mode: str) -> Optional[int]:
+    """Return exit code 2 if neither --condition nor --factor is set."""
+    if _has_condition_or_factor(args):
+        return None
+    print(
+        f"{mode} mode requires either --condition or --factor "
+        "(one is enough; both may be combined)",
+        file=sys.stderr,
+    )
+    return 2
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="orbit_ocsp",
@@ -67,7 +198,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # shared
-    p.add_argument("--condition", help="B_terms condition (e.g. \"Colorectal Cancer\")")
+    p.add_argument(
+        "--condition",
+        help=(
+            "B_terms condition (e.g. \"Colorectal Cancer\"). "
+            "Required unless --factor is set (either condition or factor)."
+        ),
+    )
+    p.add_argument(
+        "--category",
+        default=None,
+        help='B_terms category filter (e.g. "Drug Screening"); omit for all categories',
+    )
     p.add_argument(
         "--model",
         default="Organoid",
@@ -94,10 +236,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--pathway-mode",
         choices=["union", "majority"],
-        default="union",
+        default="majority",
         help=(
-            "How to aggregate condition pathway terms across matched B_terms "
-            "records: union (default) or majority across datasets"
+            "Per-record pathway combine then GSE recurrence cut. "
+            "majority (default, paper/OCSP evaluation): pairwise majority on "
+            "enrich/gsea/gsva with single-method fallback; "
+            "union: per-record union of pathway sources. "
+            "Both then apply --min-dataset-freq."
         ),
     )
     p.add_argument(
@@ -118,6 +263,7 @@ def build_parser() -> argparse.ArgumentParser:
             "(>=30 matched datasets, e.g. Colorectal Cancer), else 1"
         ),
     )
+    _add_b_term_filter_arguments(p)
 
     # expression
     p.add_argument("--matrix", help="[expression] matrix TSV/CSV (abs or relative path)")
@@ -125,7 +271,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--data-type",
         choices=["microarray", "rnaseq_count", "rnaseq", "normalized"],
-        help="[expression] data type (rnaseq is an alias for rnaseq_count)",
+        default=None,
+        help=(
+            "[expression] data type (rnaseq → rnaseq_count). Optional: omit to "
+            "auto-infer from the matrix; count-like matrices wrongly labeled "
+            "normalized/microarray are corrected to rnaseq_count"
+        ),
     )
     p.add_argument("--top-k", type=int, default=20)
     p.add_argument("--padj-max", type=float, default=0.05)
@@ -192,14 +343,19 @@ def _run_expression(args: argparse.Namespace) -> int:
     from orbit_ocsp.data_manager import ensure_data_available
     from orbit_ocsp.expression_pipeline import run_expression_biomarker_pipeline
 
-    missing = [n for n in ("matrix", "groups", "data_type", "condition") if not getattr(args, n)]
+    missing = [n for n in ("matrix", "groups") if not getattr(args, n)]
     if missing:
         print(
-            f"expression mode requires: --matrix --groups --data-type --condition\n"
+            f"expression mode requires: --matrix --groups "
+            f"and either --condition or --factor "
+            f"(--data-type optional; auto-inferred from the matrix)\n"
             f"missing: {', '.join('--' + m.replace('_', '-') for m in missing)}",
             file=sys.stderr,
         )
         return 2
+    bad = _require_condition_or_factor(args, "expression")
+    if bad is not None:
+        return bad
 
     try:
         ensure_data_available(args.species)
@@ -217,7 +373,7 @@ def _run_expression(args: argparse.Namespace) -> int:
         matrix_path=args.matrix,
         groups_path=args.groups,
         data_type=args.data_type,
-        condition=args.condition,
+        condition=args.condition or "",
         species=args.species,
         top_k=args.top_k,
         padj_max=args.padj_max,
@@ -234,6 +390,8 @@ def _run_expression(args: argparse.Namespace) -> int:
         pathway_sources=pathway_sources,
         min_dataset_freq=args.min_dataset_freq,
         model=args.model,
+        category=args.category,
+        b_filters=_b_filters_from_args(args),
     )
     print(f"[expression] ranked {len(ranked)} genes")
     print(f"Results: {Path(args.outdir) / 'biomarker_ranked.json'}")
@@ -244,9 +402,9 @@ def _run_genes(args: argparse.Namespace) -> int:
     from orbit_ocsp.data_manager import ensure_data_available
     from orbit_ocsp.expression_pipeline import run_genes_biomarker_pipeline
 
-    if not args.condition:
-        print("genes mode requires: --condition", file=sys.stderr)
-        return 2
+    bad = _require_condition_or_factor(args, "genes")
+    if bad is not None:
+        return bad
     gene_list = _parse_genes(args.genes, args.genes_file)
     if not gene_list:
         print("genes mode requires: --genes A,B,C  or  --genes-file path", file=sys.stderr)
@@ -266,7 +424,7 @@ def _run_genes(args: argparse.Namespace) -> int:
 
     ranked = run_genes_biomarker_pipeline(
         genes=gene_list,
-        condition=args.condition,
+        condition=args.condition or "",
         species=args.species,
         outdir=args.outdir,
         merged_result=args.merged_result,
@@ -277,6 +435,8 @@ def _run_genes(args: argparse.Namespace) -> int:
         pathway_sources=pathway_sources,
         min_dataset_freq=args.min_dataset_freq,
         model=args.model,
+        category=getattr(args, "category", None),
+        b_filters=_b_filters_from_args(args),
     )
     print(f"[genes] ranked {len(ranked)} genes")
     print(f"Results: {Path(args.outdir) / 'biomarker_ranked.json'}")
@@ -290,13 +450,10 @@ def _run_sequence(args: argparse.Namespace) -> int:
         run_sequence_pipeline,
     )
 
-    if not args.condition and not args.merge_only:
-        print(
-            "sequence mode requires: --condition "
-            "(or --merge-only to just build the merged JSON)",
-            file=sys.stderr,
-        )
-        return 2
+    if not args.merge_only:
+        bad = _require_condition_or_factor(args, "sequence")
+        if bad is not None:
+            return bad
 
     # Validate arguments before touching the data bundle, so a usage mistake
     # reports the usage error (exit 2) rather than "data missing" (exit 1).
@@ -353,6 +510,8 @@ def _run_sequence(args: argparse.Namespace) -> int:
             pathway_sources=pathway_sources,
             min_dataset_freq=args.min_dataset_freq,
             model=args.model,
+            category=getattr(args, "category", None),
+            b_filters=_b_filters_from_args(args),
         )
     except SequenceInputError as exc:
         print(f"error: {exc}", file=sys.stderr)
