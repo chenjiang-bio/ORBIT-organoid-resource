@@ -1300,8 +1300,8 @@ analyze_scRNA_cohort <- function(scRNA_all, samples_info, gse.number, organism,
           DEG <- cbind(name = rownames(outRst),outRst)
         }
 
-        # regulation (prefer padj over pvalue when available)
-        p_col <- if ("padj" %in% names(DEG)) "padj" else "pvalue"
+        # regulation: use pvalue (padj can be unstable with low-replicate pseudobulk)
+        p_col <- if ("pvalue" %in% names(DEG)) "pvalue" else "padj"
         DEG$regulation <- ifelse(DEG$log2FoldChange > 1 & DEG[[p_col]] < 0.05, "up",
                                  ifelse(DEG$log2FoldChange < -1 & DEG[[p_col]] < 0.05, "down", "stable"))
 
@@ -1312,28 +1312,30 @@ analyze_scRNA_cohort <- function(scRNA_all, samples_info, gse.number, organism,
         DEG <- DEG[, c(prefer, setdiff(names(DEG), prefer)), drop = FALSE]
 
         {
-          DEG_counts <- current_counts[rownames(DEG), , drop = FALSE]
+          # Display expr: TMM-CPM (no gene length; suitable for 3'/UMI pseudobulk).
+          # AveExpr_* = group means on CPM; sample cols = gene-wise z-scores of CPM.
+          y_expr <- edgeR::DGEList(counts = current_counts, group = group_data$Group)
+          y_expr <- edgeR::calcNormFactors(y_expr, method = "TMM")
+          norm_expr <- edgeR::cpm(y_expr)
+          common_genes <- intersect(rownames(DEG), rownames(norm_expr))
+          DEG <- DEG[common_genes, , drop = FALSE]
+          DEG_expr <- norm_expr[common_genes, , drop = FALSE]
 
-          # group1
-          if(nrow(info_Control) >= 2) {
-            counts_Control <- DEG_counts[, info_Control$Sample, drop = FALSE]
-            AveExpr_Control <- rowMeans(counts_Control)
+          if (nrow(info_Control) >= 2) {
+            AveExpr_Control <- rowMeans(DEG_expr[, info_Control$Sample, drop = FALSE])
           } else {
-            AveExpr_Control <- DEG_counts[, info_Control$Sample]
+            AveExpr_Control <- DEG_expr[, info_Control$Sample]
           }
-
-          # group2
-          if(nrow(info_Treatment) >= 2 ) {
-            counts_Treatment <- DEG_counts[, info_Treatment$Sample, drop = FALSE]
-            AveExpr_Case <- rowMeans(counts_Treatment)
+          if (nrow(info_Treatment) >= 2) {
+            AveExpr_Case <- rowMeans(DEG_expr[, info_Treatment$Sample, drop = FALSE])
           } else {
-            AveExpr_Case <- DEG_counts[, info_Treatment$Sample]
+            AveExpr_Case <- DEG_expr[, info_Treatment$Sample]
           }
           DEG$AveExpr_Control <- AveExpr_Control
           DEG$AveExpr_Case <- AveExpr_Case
 
-          z_score_matrix <- scale(current_counts)
-          z_aligned <- z_score_matrix[rownames(DEG), , drop = FALSE]
+          z_score_matrix <- t(scale(t(norm_expr)))
+          z_aligned <- z_score_matrix[common_genes, , drop = FALSE]
           DEG <- cbind(DEG, z_aligned)
         }
 
@@ -1938,7 +1940,7 @@ analyze_scRNA_cohort <- function(scRNA_all, samples_info, gse.number, organism,
             .pb_ctx$celltype <- as.character(celltype)
 
             # bulk (RNA raw counts; slot= for Seurat v4, layer= for v5 if slot fails)
-            counts <- AggregateExpression(data, group.by = "Sample", assays = "RNA",
+            counts <- AggregateExpression(data, group.by = "Sample", assays = "SCT",
                                           slot = "counts", return.seurat = FALSE)
             expr <- as.data.frame(counts[[1]])
             expr <- expr[rowSums(expr)>0,]

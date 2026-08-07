@@ -12,11 +12,15 @@ This module is part of [ORBIT](https://github.com/chenjiang-bio/ORBIT-organoid-r
 
 ## Documentation
 
-| Document | Contents |
-|----------|----------|
+
+| Document                                               | Contents                                                  |
+| ------------------------------------------------------ | --------------------------------------------------------- |
 | [OPERATING_INSTRUCTIONS.md](OPERATING_INSTRUCTIONS.md) | Install, references, inputs, and how to run each pipeline |
-| [Example/README.md](Example/README.md) | Minimal prepared inputs for smoke tests |
-| [GeneralFile/README.md](GeneralFile/README.md) | Annotation and reference data layout |
+| [Example/README.md](Example/README.md)                 | Minimal prepared inputs for smoke tests                   |
+| [GeneralFile/README.md](GeneralFile/README.md)         | Annotation and reference data layout                      |
+
+
+
 
 ## Quick start
 
@@ -30,13 +34,15 @@ Rscript Script/run_RNA_seq.R \
 
 # Microarray
 Rscript Script/run_MicroArray.R \
-  --work_dir Example/MicroArray --organism hsa --gse GSE30304
+  --work_dir Example/MicroArray --organism hsa --gse GSE9196
 
 # scRNA-seq
 Rscript Script/run_scRNA_seq.R \
   --work_dir Example/scRNA_seq --organism mmu --gse GSE223368 \
   --mode auto --tissue Intestine
 ```
+
+
 
 ## Layout
 
@@ -46,3 +52,4 @@ omics-pipeline/
   GeneralFile/   # gene sets and annotations (large genomes not in git)
   Example/       # prepared inputs only (no analysis outputs)
 ```
+

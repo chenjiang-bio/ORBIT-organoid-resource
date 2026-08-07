@@ -77,7 +77,7 @@ Place shared resources under `GeneralFile/` (paths are resolved relative to `Scr
 | `GEOMods.R` | Microarray GPL helpers |
 | `ref_genome/` | FASTA + GTF; HISAT2 indexes built on demand |
 
-Large genome FASTA files and HISAT2 indexes are not shipped in git (see `.gitignore`). Download them locally, then build indexes:
+Large genome FASTA files and HISAT2 indexes are not shipped in git (see `.gitignore`). Download the FASTA files locally, then build indexes:
 
 ```bash
 bash Script/run_rna_upstream.sh --species hsa --stage build-index
@@ -89,6 +89,13 @@ Default files expected in `ref_genome/`:
 - Human: `GRCh38.p14.genome.fa.gz`, `gencode.v46.annotation.gtf.gz`, index prefix `GRCh38.p14`
 - Mouse: `GRCm39.genome.fa.gz`, `gencode.vM35.annotation.gtf.gz`, index prefix `GRCm39`
 
+Genome FASTA download URLs (GENCODE / EBI FTP):
+
+- Human: https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_50/GRCh38.p14.genome.fa.gz
+- Mouse: https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M39/GRCm39.genome.fa.gz
+
+See also `GeneralFile/ref_genome/README.md`.
+
 ## Quick start (examples)
 
 ```bash
@@ -98,11 +105,11 @@ Rscript Script/run_RNA_seq.R \
 
 # Microarray (prepared inputs)
 Rscript Script/run_MicroArray.R \
-  --work_dir Example/MicroArray --organism hsa --gse GSE30304
+  --work_dir Example/MicroArray --organism hsa --gse GSE9196
 
 # Microarray from GEO (download + auto meta + analysis)
 Rscript Script/run_MicroArray.R \
-  --work_dir ./microarray_out --organism hsa --gse GSE30304 \
+  --work_dir ./microarray_out --organism hsa --gse GSE9196 \
   --download TRUE
 
 # scRNA-seq
@@ -301,7 +308,8 @@ The scRNA-seq log records `STAGE START`, `STAGE DONE`, `STAGE ERROR`, and a comp
 - Override shared resources with `--general_file /path/to/GeneralFile`.
 - Comparison headers accept `Control`/`Treatment` or `group1`/`group2`.
 - Bulk DE method (RNA-seq / scRNA pseudobulk): DESeq2 when both groups have 2–7 samples; Wilcoxon when both >=8; otherwise edgeR (estimateDisp if either side has replicates, else fixed BCV²).
-- Microarray DEG significance uses the raw `pvalue < 0.05` together with the configured fold-change threshold.
+- DEG `regulation` / `DEG_significant` (`|log2FC| > 1` and p < 0.05): Microarray and scRNA pseudobulk use raw `pvalue`; bulk RNA-seq uses `padj`.
+- Display expression columns: bulk RNA-seq uses TPM group means + gene-wise z-scores; scRNA pseudobulk uses TMM-CPM group means + gene-wise z-scores; microarray uses the limma expression matrix (log2 if needed) the same way.
 - GSVA/ssGSEA `Regulation` is assigned by `P.Value < 0.05`; direction comes from the sign of `logFC`.
 - `--strict TRUE` (default) makes batch runners exit with status 1 if any GSE/comparison failed.
 - **Speed options** (all three pipelines):

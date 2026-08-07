@@ -17,4 +17,4 @@ Scripts resolve this directory as `Script/../GeneralFile` unless you set `--gene
 | `ssGSEA/ssGSEA_Hs.rds` | Human ssGSEA (optional; skipped if missing) |
 | `ref_genome/` | Upstream RNA-seq (FASTA, GTF, HISAT2 index) |
 
-Genome FASTA files and HISAT2 indexes are not stored in git. Place them under `ref_genome/` locally before running upstream RNA-seq. See [OPERATING_INSTRUCTIONS.md](../OPERATING_INSTRUCTIONS.md) for default file names and index-building commands.
+Genome FASTA files and HISAT2 indexes are not stored in git. Download FASTA into `ref_genome/` (see [ref_genome/README.md](ref_genome/README.md)), then build indexes before running upstream RNA-seq. See [OPERATING_INSTRUCTIONS.md](../OPERATING_INSTRUCTIONS.md) for default file names and commands.
